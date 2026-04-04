@@ -1,8 +1,13 @@
 <h2>Ingestion</h2>
 <p>
   <strong>Upload:</strong> multipart POST to <code>/api/upload</code>. Files land in the
-  <code>uploads/</code> directory at the repository root. You may attach an optional
-  <code>patientId</code> after creating a patient.
+  <code>uploads/</code> directory. The server then runs a <strong>local ClamAV</strong> scan
+  when <code>clamscan</code> is available, and <strong>local OCR / PDF text extraction</strong>
+  (Tesseract.js + pdf-parse). Results are stored on the upload row; see
+  <code>docs/LOCAL_SCAN_OCR.md</code>.
+</p>
+<p>
+  You may attach an optional <code>patientId</code> after creating a patient.
 </p>
 <p>
   <strong>Manual entry:</strong> <code>POST /api/patients/ingest</code> accepts a JSON

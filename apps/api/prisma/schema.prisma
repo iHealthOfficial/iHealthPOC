@@ -85,4 +85,13 @@ model UploadArtifact {
   mimeType     String
   storagePath  String
   sizeBytes    Int
+
+  /// pending | clean | infected | skipped | error
+  scanStatus  String  @default("pending")
+  scanMessage String?
+
+  /// pending | done | skipped | error
+  ocrStatus  String  @default("pending")
+  ocrMessage String?
+  ocrText    String?
 }

@@ -206,6 +206,21 @@ h1 {
   color: var(--accent);
 }
 
+.tag-ok {
+  background: #e3f4e8;
+  color: #1e5c3a;
+}
+
+.tag-warn {
+  background: #fff4e0;
+  color: #7a5a1a;
+}
+
+.tag-bad {
+  background: #fdecea;
+  color: #8a1f18;
+}
+
 .msg {
   padding: 0.75rem 1rem;
   border-radius: 8px;

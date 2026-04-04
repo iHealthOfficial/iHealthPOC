@@ -8,7 +8,7 @@ Local-first healthcare ingestion: **uploads**, **manual patient entry** (FHIR-al
 
 ## Stack (cost: $0 locally)
 
-- **Backend:** Node.js, Express, Prisma, **SQLite** (file database), local disk **uploads/**
+- **Backend:** Node.js, Express, Prisma, **SQLite** (file database), local disk **uploads/** — optional **ClamAV** (`clamscan`) for malware scan; **Tesseract.js** (images) + **pdf-parse** (PDF text layer) for local OCR / text extraction (see [docs/LOCAL_SCAN_OCR.md](docs/LOCAL_SCAN_OCR.md))
 - **Frontend:** React, TypeScript, Vite — **production build is served by Express** on the **same port** (default **4000**)
 - **Manual:** HTML pages under `manual/`; metadata in `manual/manifest.json`; API exposes them to the React app
 
