@@ -1,0 +1,25 @@
+{
+  "title": "iHealth product manual",
+  "pages": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "file": "sections/overview.html"
+    },
+    {
+      "id": "ingestion",
+      "title": "Ingestion",
+      "file": "sections/ingestion.html"
+    },
+    {
+      "id": "fhir-model",
+      "title": "FHIR mapping",
+      "file": "sections/fhir-model.html"
+    },
+    {
+      "id": "dev-setup",
+      "title": "Developer setup",
+      "file": "sections/dev-setup.html"
+    }
+  ]
+}

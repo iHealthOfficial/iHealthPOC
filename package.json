@@ -1,0 +1,19 @@
+{
+  "name": "ihealth",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "db:migrate": "npm run db:migrate --workspace=@ihealth/api",
+    "build:web": "npm run build --workspace=@ihealth/web",
+    "build": "npm run build --workspaces --if-present",
+    "serve": "npm run build:web && npm run dev --workspace=@ihealth/api",
+    "start": "npm run build:web && npm run build --workspace=@ihealth/api && npm run start --workspace=@ihealth/api",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

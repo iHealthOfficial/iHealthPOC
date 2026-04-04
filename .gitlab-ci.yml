@@ -1,0 +1,75 @@
+# iHealth — GitLab CI (Node 20, no paid services)
+# Push this repo to GitLab; pipeline runs on merge requests and default branch.
+
+image: node:20-bookworm
+
+variables:
+  NPM_CONFIG_FUND: "false"
+  NPM_CONFIG_AUDIT: "false"
+  DATABASE_URL: "file:./prisma/ci.db"
+
+cache:
+  key: ihealth-npm
+  paths:
+    - node_modules/
+    - apps/api/node_modules/
+    - apps/web/node_modules/
+
+stages:
+  - install
+  - lint
+  - build
+  - deploy
+
+install_deps:
+  stage: install
+  script:
+    - npm install
+  artifacts:
+    paths:
+      - node_modules/
+      - apps/api/node_modules/
+      - apps/web/node_modules/
+    expire_in: 1 hour
+
+lint:
+  stage: lint
+  needs: [install_deps]
+  script:
+    - npm run lint
+
+build:
+  stage: build
+  needs: [install_deps]
+  script:
+    - cd apps/api && npx prisma generate && cd ../..
+    - npm run build --workspaces --if-present
+  artifacts:
+    paths:
+      - apps/api/dist/
+      - apps/web/dist/
+    expire_in: 1 week
+
+# Publishes the React app to GitLab Pages (static hosting only).
+# URL (after enabling Pages): https://<namespace>.gitlab.io/<project-name>/
+# Override path: set CI/CD variable VITE_BASE (e.g. /my-group/ihealth/) if the default is wrong.
+# API calls: set VITE_API_URL to your publicly reachable backend, or the UI will not load data.
+pages:
+  stage: deploy
+  needs: [install_deps]
+  script:
+    - |
+      if [ -n "$VITE_BASE_OVERRIDE" ]; then
+        export VITE_BASE="$VITE_BASE_OVERRIDE"
+      else
+        export VITE_BASE="/$(echo -n "$CI_PROJECT_NAME" | tr '[:upper:]' '[:lower:]')/"
+      fi
+    - echo "VITE_BASE=$VITE_BASE"
+    - npm run build --workspace=@ihealth/web
+    - mkdir -p public
+    - cp -r apps/web/dist/* public/
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

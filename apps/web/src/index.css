@@ -1,0 +1,288 @@
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --text: #1a1f1c;
+  --muted: #5c6860;
+  --accent: #2d6a5d;
+  --accent-soft: #e8f2ef;
+  --border: #d9e0db;
+  --radius: 12px;
+  --font: "DM Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.layout {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding-bottom: 2rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-right: auto;
+}
+
+.brand span {
+  color: var(--accent);
+}
+
+.nav a {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.nav a.active {
+  color: var(--accent);
+}
+
+h1 {
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.5rem;
+}
+
+.lead {
+  color: var(--muted);
+  margin: 0 0 2rem;
+  max-width: 52ch;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.card h2 {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.field-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.field textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn:hover {
+  filter: brightness(1.05);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.row-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.msg {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.msg.ok {
+  background: var(--accent-soft);
+  color: #1e4d3f;
+}
+
+.msg.err {
+  background: #fdecea;
+  color: #7a1f18;
+}
+
+.manual-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .manual-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.manual-toc {
+  position: sticky;
+  top: 1rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.manual-toc li {
+  margin-bottom: 0.35rem;
+}
+
+.manual-toc button {
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.manual-toc button:hover,
+.manual-toc button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.manual-body {
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.manual-body h2 {
+  margin-top: 0;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.manual-body p {
+  color: var(--muted);
+}
+
+.manual-body code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--bg);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+}

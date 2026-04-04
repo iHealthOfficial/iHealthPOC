@@ -1,0 +1,88 @@
+// SQLite for zero-cost local POC; map tables to FHIR resource types in app layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// FHIR: Patient
+model Patient {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  active    Boolean  @default(true)
+
+  family     String?
+  given      String   // JSON array of given names, e.g. ["Jane","Q"]
+  gender     String? // administrative gender code
+  birthDate  DateTime?
+
+  phone      String?
+  email      String?
+  addressLine String?
+  city       String?
+  state      String?
+  postalCode String?
+  country    String? @default("US")
+
+  identifierSystem String?
+  identifierValue  String?
+
+  observations Observation[]
+  conditions   Condition[]
+  uploads      UploadArtifact[]
+}
+
+/// FHIR: Observation — use `category` = "laboratory" for labs, else vital-signs, exam, etc.
+model Observation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  /// laboratory | vital-signs | exam | survey | procedure | other
+  category  String
+  /// Display or code text (LOINC/SNOMED in real use)
+  code      String
+  valueString       String?
+  valueQuantity     Float?
+  valueQuantityUnit String?
+  effectiveDateTime DateTime?
+  status            String  @default("final")
+}
+
+/// FHIR: Condition (diagnosis)
+model Condition {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  clinicalStatus      String? // active | recurrence | inactive | remission | resolved
+  verificationStatus  String? // unconfirmed | provisional | differential | confirmed
+  code                String  // ICD-10 / SNOMED display or code
+  onsetDateTime       DateTime?
+  recordedDate        DateTime?
+}
+
+/// Uploaded files linked optionally to a patient (Binary / DocumentReference could map here later)
+model UploadArtifact {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  originalName String
+  mimeType     String
+  storagePath  String
+  sizeBytes    Int
+}

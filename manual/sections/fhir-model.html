@@ -1,0 +1,31 @@
+<h2>FHIR mapping</h2>
+<table style="width:100%; border-collapse: collapse; font-size: 0.9rem">
+  <thead>
+    <tr style="border-bottom: 1px solid var(--border, #ccc); text-align: left">
+      <th style="padding: 0.5rem 0">Table</th>
+      <th style="padding: 0.5rem 0">FHIR ResourceType</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom: 1px solid #eee">
+      <td style="padding: 0.45rem 0"><code>Patient</code></td>
+      <td>Patient</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #eee">
+      <td style="padding: 0.45rem 0"><code>Observation</code> (labs)</td>
+      <td>Observation · category <code>laboratory</code></td>
+    </tr>
+    <tr style="border-bottom: 1px solid #eee">
+      <td style="padding: 0.45rem 0"><code>Observation</code> (other)</td>
+      <td>Observation · vital-signs, exam, etc.</td>
+    </tr>
+    <tr>
+      <td style="padding: 0.45rem 0"><code>Condition</code></td>
+      <td>Condition (diagnosis)</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  <code>UploadArtifact</code> is not a FHIR resource yet; it can later map to
+  DocumentReference or Binary.
+</p>

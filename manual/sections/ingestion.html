@@ -1,0 +1,16 @@
+<h2>Ingestion</h2>
+<p>
+  <strong>Upload:</strong> multipart POST to <code>/api/upload</code>. Files land in the
+  <code>uploads/</code> directory at the repository root. You may attach an optional
+  <code>patientId</code> after creating a patient.
+</p>
+<p>
+  <strong>Manual entry:</strong> <code>POST /api/patients/ingest</code> accepts a JSON
+  body with <code>patient</code>, <code>labs</code>, <code>observations</code>, and
+  <code>conditions</code>. Labs are stored as Observations with category
+  <code>laboratory</code>.
+</p>
+<p>
+  <strong>API:</strong> the same ingest endpoint can be used by external clients; OpenAPI
+  can be added under <code>packages/contracts</code> in a future iteration.
+</p>
