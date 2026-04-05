@@ -50,6 +50,18 @@ type EncounterRow = {
   practitionerIndex: string;
 };
 
+/** Maps to API Coverage model (patient insurance capture). */
+type CoverageRow = {
+  status: string;
+  insurerName: string;
+  planName: string;
+  subscriberId: string;
+  memberId: string;
+  relationshipText: string;
+  periodStart: string;
+  periodEnd: string;
+};
+
 type PractitionerRow = {
   family: string;
   given: string;
@@ -115,6 +127,17 @@ const emptyEncounter = (): EncounterRow => ({
   periodStart: "",
   periodEnd: "",
   practitionerIndex: "",
+});
+
+const emptyCoverage = (): CoverageRow => ({
+  status: "",
+  insurerName: "",
+  planName: "",
+  subscriberId: "",
+  memberId: "",
+  relationshipText: "",
+  periodStart: "",
+  periodEnd: "",
 });
 
 const emptyPractitioner = (): PractitionerRow => ({
@@ -194,6 +217,7 @@ export default function PatientEntry() {
   const [procedures, setProcedures] = useState<ProcedureRow[]>([]);
   const [allergies, setAllergies] = useState<AllergyRow[]>([]);
   const [encounters, setEncounters] = useState<EncounterRow[]>([]);
+  const [coverageRows, setCoverageRows] = useState<CoverageRow[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -339,6 +363,28 @@ export default function PatientEntry() {
               pi != null && !Number.isNaN(pi) && pi >= 0 ? pi : undefined,
           };
         }),
+      coverages: coverageRows
+        .filter(
+          (c) =>
+            c.status.trim() ||
+            c.insurerName.trim() ||
+            c.planName.trim() ||
+            c.subscriberId.trim() ||
+            c.memberId.trim() ||
+            c.relationshipText.trim() ||
+            c.periodStart ||
+            c.periodEnd,
+        )
+        .map((c) => ({
+          status: c.status.trim() || undefined,
+          insurerName: c.insurerName.trim() || undefined,
+          planName: c.planName.trim() || undefined,
+          subscriberId: c.subscriberId.trim() || undefined,
+          memberId: c.memberId.trim() || undefined,
+          relationshipText: c.relationshipText.trim() || undefined,
+          periodStart: c.periodStart ? new Date(c.periodStart).toISOString() : undefined,
+          periodEnd: c.periodEnd ? new Date(c.periodEnd).toISOString() : undefined,
+        })),
     };
 
     try {
@@ -363,8 +409,8 @@ export default function PatientEntry() {
         Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit.{" "}
         <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong> (non-laboratory),{" "}
         <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), <strong>Condition</strong>,{" "}
-        <strong>Procedure</strong>, <strong>Allergy intolerance</strong>, and <strong>Encounter</strong> have fields; other tabs
-        are placeholders until their chunks land.
+        <strong>Procedure</strong>, <strong>Allergy intolerance</strong>, <strong>Encounter</strong>, and <strong>Insurance</strong>{" "}
+        (Coverage) have fields; the Medication tab is still a placeholder until later chunks.
       </p>
 
       {error && <div className="msg err">{error}</div>}
@@ -1199,9 +1245,104 @@ export default function PatientEntry() {
       >
         <div className="card">
           <h2>Insurance (FHIR Coverage)</h2>
-          <p className="lead" style={{ marginBottom: 0 }}>
-            Coverage and plan fields will be added in a later chunk (aligned to patient insurance capture).
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            One row per coverage record. Fill any fields you have; completely empty rows are not saved.
           </p>
+          {coverageRows.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No coverage rows yet — use &quot;Add coverage&quot; below.
+            </p>
+          )}
+          {coverageRows.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field">
+                <label>Status</label>
+                <select
+                  value={row.status}
+                  onChange={(e) =>
+                    setCoverageRows(coverageRows.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)))
+                  }
+                >
+                  <option value="">—</option>
+                  <option value="active">active</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="draft">draft</option>
+                  <option value="entered-in-error">entered-in-error</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Insurer / payor name</label>
+                <input
+                  value={row.insurerName}
+                  onChange={(e) =>
+                    setCoverageRows(coverageRows.map((r, j) => (j === i ? { ...r, insurerName: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Plan name</label>
+                <input
+                  value={row.planName}
+                  onChange={(e) =>
+                    setCoverageRows(coverageRows.map((r, j) => (j === i ? { ...r, planName: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Subscriber ID</label>
+                <input
+                  value={row.subscriberId}
+                  onChange={(e) =>
+                    setCoverageRows(coverageRows.map((r, j) => (j === i ? { ...r, subscriberId: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Member ID</label>
+                <input
+                  value={row.memberId}
+                  onChange={(e) =>
+                    setCoverageRows(coverageRows.map((r, j) => (j === i ? { ...r, memberId: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Relationship to subscriber (text)</label>
+                <input
+                  value={row.relationshipText}
+                  onChange={(e) =>
+                    setCoverageRows(
+                      coverageRows.map((r, j) => (j === i ? { ...r, relationshipText: e.target.value } : r)),
+                    )
+                  }
+                  placeholder="self, spouse, child…"
+                />
+              </div>
+              <div className="field">
+                <label>Coverage period start</label>
+                <input
+                  type="datetime-local"
+                  value={row.periodStart}
+                  onChange={(e) =>
+                    setCoverageRows(coverageRows.map((r, j) => (j === i ? { ...r, periodStart: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Coverage period end</label>
+                <input
+                  type="datetime-local"
+                  value={row.periodEnd}
+                  onChange={(e) =>
+                    setCoverageRows(coverageRows.map((r, j) => (j === i ? { ...r, periodEnd: e.target.value } : r)))
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost" onClick={() => setCoverageRows([...coverageRows, emptyCoverage()])}>
+            Add coverage
+          </button>
         </div>
       </div>
 
