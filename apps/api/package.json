@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "cross-env DATABASE_URL=file:./dev.db tsx watch src/index.ts",
     "build": "prisma generate && tsc",
-    "start": "node dist/index.js",
+    "start": "cross-env DATABASE_URL=file:./dev.db node dist/index.js",
     "lint": "tsc --noEmit",
     "test": "echo \"No tests yet\"",
     "prepare": "cross-env DATABASE_URL=file:./dev.db prisma generate",
