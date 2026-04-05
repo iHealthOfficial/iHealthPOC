@@ -98,6 +98,16 @@ export function toFhirPractitioner(pr: Practitioner): Record<string, unknown> {
     pr.identifierSystem && pr.identifierValue
       ? [{ system: pr.identifierSystem, value: pr.identifierValue }]
       : undefined;
+  const extension =
+    pr.contextEncounterId != null
+      ? [
+          {
+            url: "http://hl7.org/fhir/StructureDefinition/event-encounter",
+            valueReference: { reference: `Encounter/${pr.contextEncounterId}` },
+          },
+        ]
+      : undefined;
+
   return {
     resourceType: "Practitioner",
     id: pr.id,
@@ -111,6 +121,7 @@ export function toFhirPractitioner(pr: Practitioner): Record<string, unknown> {
     qualification: pr.specialty
       ? [{ code: { text: pr.specialty } }]
       : undefined,
+    extension,
   };
 }
 
@@ -126,6 +137,7 @@ export function toFhirObservation(o: Observation): Record<string, unknown> {
     category: [{ coding: [{ display: o.category }] }],
     code: { text: o.code },
     subject: { reference: `Patient/${o.patientId}` },
+    encounter: o.encounterId ? { reference: `Encounter/${o.encounterId}` } : undefined,
     effectiveDateTime: o.effectiveDateTime?.toISOString(),
     valueString: o.valueString ?? undefined,
     valueQuantity,
@@ -140,6 +152,7 @@ export function toFhirDiagnosticReport(dr: DiagnosticReport): Record<string, unk
     status: dr.status,
     code: { text: dr.code },
     subject: { reference: `Patient/${dr.patientId}` },
+    encounter: dr.encounterId ? { reference: `Encounter/${dr.encounterId}` } : undefined,
     conclusion: dr.conclusion ?? undefined,
     effectiveDateTime: dr.effectiveDateTime?.toISOString(),
     issued: dr.issued?.toISOString(),
@@ -158,6 +171,7 @@ export function toFhirCondition(c: Condition): Record<string, unknown> {
       : undefined,
     code: { text: c.code },
     subject: { reference: `Patient/${c.patientId}` },
+    encounter: c.encounterId ? { reference: `Encounter/${c.encounterId}` } : undefined,
     onsetDateTime: c.onsetDateTime?.toISOString(),
     recordedDate: c.recordedDate?.toISOString(),
   };
@@ -171,6 +185,7 @@ export function toFhirProcedure(proc: Procedure): Record<string, unknown> {
     status: proc.status ?? undefined,
     code: { text: proc.code },
     subject: { reference: `Patient/${proc.patientId}` },
+    encounter: proc.encounterId ? { reference: `Encounter/${proc.encounterId}` } : undefined,
     performedDateTime: proc.performedDateTime?.toISOString(),
     bodySite: proc.bodySite ? [{ text: proc.bodySite }] : undefined,
   };
@@ -191,6 +206,7 @@ export function toFhirAllergyIntolerance(a: AllergyIntolerance): Record<string, 
     category: a.category ? [a.category] : undefined,
     code: { text: a.code },
     patient: { reference: `Patient/${a.patientId}` },
+    encounter: a.encounterId ? { reference: `Encounter/${a.encounterId}` } : undefined,
     reaction: a.reaction
       ? [{ manifestation: [{ text: a.reaction }] }]
       : undefined,
@@ -262,6 +278,7 @@ export function toFhirMedicationRequest(mr: MedicationRequest): Record<string, u
     status: mr.status ?? undefined,
     intent: mr.intent ?? undefined,
     subject: { reference: `Patient/${mr.patientId}` },
+    encounter: mr.encounterId ? { reference: `Encounter/${mr.encounterId}` } : undefined,
     medicationCodeableConcept: { text: mr.medicationCode },
     dosageInstruction: mr.dosageText ? [{ text: mr.dosageText }] : undefined,
     authoredOn: mr.authoredOn?.toISOString(),
@@ -276,6 +293,7 @@ export function toFhirMedicationAdministration(ma: MedicationAdministration): Re
     meta: { lastUpdated: ma.updatedAt.toISOString() },
     status: ma.status ?? undefined,
     subject: { reference: `Patient/${ma.patientId}` },
+    context: ma.encounterId ? { reference: `Encounter/${ma.encounterId}` } : undefined,
     medication: { concept: { text: ma.medicationCode } },
     effectiveDateTime: ma.effectiveDateTime?.toISOString(),
     dosage: ma.doseText ? { text: ma.doseText } : undefined,
@@ -293,6 +311,7 @@ export function toFhirMedicationDispense(md: MedicationDispense): Record<string,
     meta: { lastUpdated: md.updatedAt.toISOString() },
     status: md.status ?? undefined,
     subject: { reference: `Patient/${md.patientId}` },
+    context: md.encounterId ? { reference: `Encounter/${md.encounterId}` } : undefined,
     medication: { concept: { text: md.medicationCode } },
     whenHandedOver: md.whenHandedOver?.toISOString(),
     note: noteParts.length ? [{ text: noteParts.join("; ") }] : undefined,
@@ -306,6 +325,7 @@ export function toFhirMedicationStatement(ms: MedicationStatement): Record<strin
     meta: { lastUpdated: ms.updatedAt.toISOString() },
     status: ms.status ?? undefined,
     subject: { reference: `Patient/${ms.patientId}` },
+    context: ms.encounterId ? { reference: `Encounter/${ms.encounterId}` } : undefined,
     medication: { concept: { text: ms.medicationCode } },
     effectiveDateTime: ms.effectiveDateTime?.toISOString(),
     dosage: ms.dosageText ? [{ text: ms.dosageText }] : undefined,
@@ -313,6 +333,15 @@ export function toFhirMedicationStatement(ms: MedicationStatement): Record<strin
 }
 
 export function toFhirMedication(m: Medication): Record<string, unknown> {
+  const extension =
+    m.encounterId != null
+      ? [
+          {
+            url: "http://hl7.org/fhir/StructureDefinition/event-encounter",
+            valueReference: { reference: `Encounter/${m.encounterId}` },
+          },
+        ]
+      : undefined;
   return {
     resourceType: "Medication",
     id: m.id,
@@ -321,6 +350,7 @@ export function toFhirMedication(m: Medication): Record<string, unknown> {
     status: m.status ?? undefined,
     doseForm: m.form ? { text: m.form } : undefined,
     ingredient: m.strength ? [{ item: { concept: { text: m.strength } } }] : undefined,
+    extension,
   };
 }
 
@@ -331,6 +361,7 @@ export function toFhirImmunization(im: Immunization): Record<string, unknown> {
     meta: { lastUpdated: im.updatedAt.toISOString() },
     status: im.status ?? undefined,
     patient: { reference: `Patient/${im.patientId}` },
+    encounter: im.encounterId ? { reference: `Encounter/${im.encounterId}` } : undefined,
     vaccineCode: { text: im.vaccineCode },
     occurrenceDateTime: im.occurrenceDateTime?.toISOString(),
     lotNumber: im.lotNumber ?? undefined,

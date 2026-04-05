@@ -97,6 +97,9 @@ const patientCore = z.object({
   identifierValue: z.string().optional(),
 });
 
+/** Index into the ingest `encounters` array (post-filter order must match client). */
+const encounterIndexIn = z.number().int().nonnegative().optional();
+
 const practitionerIn = z.object({
   family: z.string().optional(),
   given: z.array(z.string()).min(1),
@@ -108,6 +111,7 @@ const practitionerIn = z.object({
   identifierSystem: z.string().optional(),
   identifierValue: z.string().optional(),
   specialty: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const diagnosticReportIn = z.object({
@@ -116,6 +120,7 @@ const diagnosticReportIn = z.object({
   conclusion: z.string().optional(),
   effectiveDateTime: z.string().optional(),
   issued: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const procedureIn = z.object({
@@ -123,6 +128,7 @@ const procedureIn = z.object({
   code: z.string().min(1),
   performedDateTime: z.string().optional(),
   bodySite: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const allergyIntoleranceIn = z.object({
@@ -133,6 +139,7 @@ const allergyIntoleranceIn = z.object({
   code: z.string().min(1),
   reaction: z.string().optional(),
   onsetDateTime: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const encounterIn = z.object({
@@ -162,6 +169,7 @@ const medicationRequestIn = z.object({
   dosageText: z.string().optional(),
   authoredOn: z.string().optional(),
   requesterText: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const medicationAdministrationIn = z.object({
@@ -170,6 +178,7 @@ const medicationAdministrationIn = z.object({
   effectiveDateTime: z.string().optional(),
   doseText: z.string().optional(),
   routeText: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const medicationDispenseIn = z.object({
@@ -178,6 +187,7 @@ const medicationDispenseIn = z.object({
   whenHandedOver: z.string().optional(),
   quantityText: z.string().optional(),
   daysSupply: z.number().int().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const medicationStatementIn = z.object({
@@ -185,6 +195,7 @@ const medicationStatementIn = z.object({
   medicationCode: z.string().min(1),
   effectiveDateTime: z.string().optional(),
   dosageText: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const medicationProductIn = z.object({
@@ -192,6 +203,7 @@ const medicationProductIn = z.object({
   status: z.string().optional(),
   form: z.string().optional(),
   strength: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const immunizationIn = z.object({
@@ -200,6 +212,7 @@ const immunizationIn = z.object({
   occurrenceDateTime: z.string().optional(),
   lotNumber: z.string().optional(),
   manufacturerText: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const observationIn = z.object({
@@ -209,6 +222,7 @@ const observationIn = z.object({
   valueQuantity: z.number().optional(),
   valueQuantityUnit: z.string().optional(),
   effectiveDateTime: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 /** Labs payload omits category — always stored as `laboratory` Observation. */
@@ -218,6 +232,7 @@ const labObservationIn = z.object({
   valueQuantity: z.number().optional(),
   valueQuantityUnit: z.string().optional(),
   effectiveDateTime: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const conditionIn = z.object({
@@ -226,6 +241,7 @@ const conditionIn = z.object({
   code: z.string(),
   onsetDateTime: z.string().optional(),
   recordedDate: z.string().optional(),
+  encounterIndex: encounterIndexIn,
 });
 
 const ingestBody = z.object({
@@ -363,6 +379,12 @@ export function registerPatientRoutes(app: Express): void {
 
     try {
       const result = await prisma.$transaction(async (tx) => {
+        function encounterIdAt(index: number | undefined, encounterIds: string[]): string | undefined {
+          if (index == null) return undefined;
+          if (index < 0 || index >= encounterIds.length) return undefined;
+          return encounterIds[index]!;
+        }
+
         const pat = await tx.patient.create({
           data: {
             family: patient.family,
@@ -399,6 +421,36 @@ export function registerPatientRoutes(app: Express): void {
           practitionerIds.push(row.id);
         }
 
+        const encounterIds: string[] = [];
+        for (const enc of encounters) {
+          const idx = enc.practitionerIndex;
+          const practitionerId =
+            idx != null && idx >= 0 && idx < practitionerIds.length ? practitionerIds[idx]! : undefined;
+          const row = await tx.encounter.create({
+            data: {
+              patientId: pat.id,
+              practitionerId,
+              status: enc.status,
+              classCode: enc.classCode,
+              typeText: enc.typeText,
+              periodStart: parseDate(enc.periodStart),
+              periodEnd: parseDate(enc.periodEnd),
+            },
+          });
+          encounterIds.push(row.id);
+        }
+
+        for (let i = 0; i < practitioners.length; i++) {
+          const pr = practitioners[i]!;
+          const eid = encounterIdAt(pr.encounterIndex, encounterIds);
+          if (eid) {
+            await tx.practitioner.update({
+              where: { id: practitionerIds[i]! },
+              data: { contextEncounterId: eid },
+            });
+          }
+        }
+
         for (const lab of labs) {
           await tx.observation.create({
             data: {
@@ -409,6 +461,7 @@ export function registerPatientRoutes(app: Express): void {
               valueQuantity: lab.valueQuantity,
               valueQuantityUnit: lab.valueQuantityUnit,
               effectiveDateTime: parseDate(lab.effectiveDateTime),
+              encounterId: encounterIdAt(lab.encounterIndex, encounterIds),
             },
           });
         }
@@ -423,6 +476,7 @@ export function registerPatientRoutes(app: Express): void {
               valueQuantity: obs.valueQuantity,
               valueQuantityUnit: obs.valueQuantityUnit,
               effectiveDateTime: parseDate(obs.effectiveDateTime),
+              encounterId: encounterIdAt(obs.encounterIndex, encounterIds),
             },
           });
         }
@@ -436,6 +490,7 @@ export function registerPatientRoutes(app: Express): void {
               code: c.code,
               onsetDateTime: parseDate(c.onsetDateTime),
               recordedDate: parseDate(c.recordedDate) ?? new Date(),
+              encounterId: encounterIdAt(c.encounterIndex, encounterIds),
             },
           });
         }
@@ -449,6 +504,7 @@ export function registerPatientRoutes(app: Express): void {
               conclusion: dr.conclusion,
               effectiveDateTime: parseDate(dr.effectiveDateTime),
               issued: parseDate(dr.issued),
+              encounterId: encounterIdAt(dr.encounterIndex, encounterIds),
             },
           });
         }
@@ -461,6 +517,7 @@ export function registerPatientRoutes(app: Express): void {
               code: proc.code,
               performedDateTime: parseDate(proc.performedDateTime),
               bodySite: proc.bodySite,
+              encounterId: encounterIdAt(proc.encounterIndex, encounterIds),
             },
           });
         }
@@ -476,23 +533,7 @@ export function registerPatientRoutes(app: Express): void {
               code: a.code,
               reaction: a.reaction,
               onsetDateTime: parseDate(a.onsetDateTime),
-            },
-          });
-        }
-
-        for (const enc of encounters) {
-          const idx = enc.practitionerIndex;
-          const practitionerId =
-            idx != null && idx >= 0 && idx < practitionerIds.length ? practitionerIds[idx]! : undefined;
-          await tx.encounter.create({
-            data: {
-              patientId: pat.id,
-              practitionerId,
-              status: enc.status,
-              classCode: enc.classCode,
-              typeText: enc.typeText,
-              periodStart: parseDate(enc.periodStart),
-              periodEnd: parseDate(enc.periodEnd),
+              encounterId: encounterIdAt(a.encounterIndex, encounterIds),
             },
           });
         }
@@ -523,6 +564,7 @@ export function registerPatientRoutes(app: Express): void {
               dosageText: mr.dosageText,
               authoredOn: parseDate(mr.authoredOn),
               requesterText: mr.requesterText,
+              encounterId: encounterIdAt(mr.encounterIndex, encounterIds),
             },
           });
         }
@@ -536,6 +578,7 @@ export function registerPatientRoutes(app: Express): void {
               effectiveDateTime: parseDate(ma.effectiveDateTime),
               doseText: ma.doseText,
               routeText: ma.routeText,
+              encounterId: encounterIdAt(ma.encounterIndex, encounterIds),
             },
           });
         }
@@ -549,6 +592,7 @@ export function registerPatientRoutes(app: Express): void {
               whenHandedOver: parseDate(md.whenHandedOver),
               quantityText: md.quantityText,
               daysSupply: md.daysSupply,
+              encounterId: encounterIdAt(md.encounterIndex, encounterIds),
             },
           });
         }
@@ -561,6 +605,7 @@ export function registerPatientRoutes(app: Express): void {
               medicationCode: ms.medicationCode,
               effectiveDateTime: parseDate(ms.effectiveDateTime),
               dosageText: ms.dosageText,
+              encounterId: encounterIdAt(ms.encounterIndex, encounterIds),
             },
           });
         }
@@ -573,6 +618,7 @@ export function registerPatientRoutes(app: Express): void {
               status: med.status,
               form: med.form,
               strength: med.strength,
+              encounterId: encounterIdAt(med.encounterIndex, encounterIds),
             },
           });
         }
@@ -586,6 +632,7 @@ export function registerPatientRoutes(app: Express): void {
               occurrenceDateTime: parseDate(im.occurrenceDateTime),
               lotNumber: im.lotNumber,
               manufacturerText: im.manufacturerText,
+              encounterId: encounterIdAt(im.encounterIndex, encounterIds),
             },
           });
         }

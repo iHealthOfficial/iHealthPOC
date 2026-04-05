@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 
 type LabRow = {
@@ -6,6 +6,8 @@ type LabRow = {
   valueQuantity: string;
   valueQuantityUnit: string;
   effectiveDateTime: string;
+  /** Index into ingest `encounters` array (only rows that will be saved). */
+  encounterIndex: string;
 };
 
 type ObsRow = {
@@ -13,6 +15,7 @@ type ObsRow = {
   code: string;
   valueString: string;
   effectiveDateTime: string;
+  encounterIndex: string;
 };
 
 type CondRow = {
@@ -21,6 +24,7 @@ type CondRow = {
   verificationStatus: string;
   onsetDateTime: string;
   recordedDate: string;
+  encounterIndex: string;
 };
 
 type ProcedureRow = {
@@ -28,6 +32,7 @@ type ProcedureRow = {
   code: string;
   performedDateTime: string;
   bodySite: string;
+  encounterIndex: string;
 };
 
 type AllergyRow = {
@@ -38,6 +43,7 @@ type AllergyRow = {
   code: string;
   reaction: string;
   onsetDateTime: string;
+  encounterIndex: string;
 };
 
 type EncounterRow = {
@@ -70,6 +76,7 @@ type PractitionerRow = {
   identifierSystem: string;
   identifierValue: string;
   specialty: string;
+  encounterIndex: string;
 };
 
 /** FHIR DiagnosticReport — report-level metadata (lab values are Observations with category laboratory). */
@@ -79,6 +86,7 @@ type DiagnosticReportRow = {
   conclusion: string;
   effectiveDateTime: string;
   issued: string;
+  encounterIndex: string;
 };
 
 type MedicationRequestRow = {
@@ -88,6 +96,7 @@ type MedicationRequestRow = {
   dosageText: string;
   authoredOn: string;
   requesterText: string;
+  encounterIndex: string;
 };
 
 type MedicationAdministrationRow = {
@@ -96,6 +105,7 @@ type MedicationAdministrationRow = {
   effectiveDateTime: string;
   doseText: string;
   routeText: string;
+  encounterIndex: string;
 };
 
 type MedicationDispenseRow = {
@@ -104,6 +114,7 @@ type MedicationDispenseRow = {
   whenHandedOver: string;
   quantityText: string;
   daysSupply: string;
+  encounterIndex: string;
 };
 
 type MedicationStatementRow = {
@@ -111,6 +122,7 @@ type MedicationStatementRow = {
   medicationCode: string;
   effectiveDateTime: string;
   dosageText: string;
+  encounterIndex: string;
 };
 
 type MedicationProductRow = {
@@ -118,6 +130,7 @@ type MedicationProductRow = {
   status: string;
   form: string;
   strength: string;
+  encounterIndex: string;
 };
 
 type ImmunizationRow = {
@@ -126,6 +139,7 @@ type ImmunizationRow = {
   occurrenceDateTime: string;
   lotNumber: string;
   manufacturerText: string;
+  encounterIndex: string;
 };
 
 const emptyLab = (): LabRow => ({
@@ -133,6 +147,7 @@ const emptyLab = (): LabRow => ({
   valueQuantity: "",
   valueQuantityUnit: "",
   effectiveDateTime: "",
+  encounterIndex: "",
 });
 
 const emptyObs = (): ObsRow => ({
@@ -140,6 +155,7 @@ const emptyObs = (): ObsRow => ({
   code: "",
   valueString: "",
   effectiveDateTime: "",
+  encounterIndex: "",
 });
 
 const emptyCond = (): CondRow => ({
@@ -148,6 +164,7 @@ const emptyCond = (): CondRow => ({
   verificationStatus: "confirmed",
   onsetDateTime: "",
   recordedDate: "",
+  encounterIndex: "",
 });
 
 const emptyProcedure = (): ProcedureRow => ({
@@ -155,6 +172,7 @@ const emptyProcedure = (): ProcedureRow => ({
   code: "",
   performedDateTime: "",
   bodySite: "",
+  encounterIndex: "",
 });
 
 const emptyAllergy = (): AllergyRow => ({
@@ -165,6 +183,7 @@ const emptyAllergy = (): AllergyRow => ({
   code: "",
   reaction: "",
   onsetDateTime: "",
+  encounterIndex: "",
 });
 
 const emptyEncounter = (): EncounterRow => ({
@@ -195,6 +214,7 @@ const emptyPractitioner = (): PractitionerRow => ({
   identifierSystem: "",
   identifierValue: "",
   specialty: "",
+  encounterIndex: "",
 });
 
 const emptyDiagnosticReport = (): DiagnosticReportRow => ({
@@ -203,6 +223,7 @@ const emptyDiagnosticReport = (): DiagnosticReportRow => ({
   conclusion: "",
   effectiveDateTime: "",
   issued: "",
+  encounterIndex: "",
 });
 
 const emptyMedicationRequest = (): MedicationRequestRow => ({
@@ -212,6 +233,7 @@ const emptyMedicationRequest = (): MedicationRequestRow => ({
   dosageText: "",
   authoredOn: "",
   requesterText: "",
+  encounterIndex: "",
 });
 
 const emptyMedicationAdministration = (): MedicationAdministrationRow => ({
@@ -220,6 +242,7 @@ const emptyMedicationAdministration = (): MedicationAdministrationRow => ({
   effectiveDateTime: "",
   doseText: "",
   routeText: "",
+  encounterIndex: "",
 });
 
 const emptyMedicationDispense = (): MedicationDispenseRow => ({
@@ -228,6 +251,7 @@ const emptyMedicationDispense = (): MedicationDispenseRow => ({
   whenHandedOver: "",
   quantityText: "",
   daysSupply: "",
+  encounterIndex: "",
 });
 
 const emptyMedicationStatement = (): MedicationStatementRow => ({
@@ -235,6 +259,7 @@ const emptyMedicationStatement = (): MedicationStatementRow => ({
   medicationCode: "",
   effectiveDateTime: "",
   dosageText: "",
+  encounterIndex: "",
 });
 
 const emptyMedicationProduct = (): MedicationProductRow => ({
@@ -242,6 +267,7 @@ const emptyMedicationProduct = (): MedicationProductRow => ({
   status: "active",
   form: "",
   strength: "",
+  encounterIndex: "",
 });
 
 const emptyImmunization = (): ImmunizationRow => ({
@@ -250,6 +276,7 @@ const emptyImmunization = (): ImmunizationRow => ({
   occurrenceDateTime: "",
   lotNumber: "",
   manufacturerText: "",
+  encounterIndex: "",
 });
 
 const MED_SUB_TABS = [
@@ -297,6 +324,72 @@ function practitionerPayloadOptions(rows: PractitionerRow[]): { index: number; l
   return options;
 }
 
+const DRAFT_STORAGE_KEY = "ihealth-patient-entry-draft-v1";
+
+function encountersInPayloadOrder(rows: EncounterRow[]): EncounterRow[] {
+  return rows.filter(
+    (en) =>
+      en.status.trim() ||
+      en.classCode.trim() ||
+      en.typeText.trim() ||
+      en.periodStart ||
+      en.periodEnd ||
+      en.practitionerIndex !== "",
+  );
+}
+
+/** Option index matches ingest `encounters[]` order (only rows that will be saved). */
+function encounterPayloadOptions(rows: EncounterRow[]): { index: number; label: string }[] {
+  return encountersInPayloadOrder(rows).map((row, index) => ({
+    index,
+    label:
+      [row.typeText.trim(), row.status.trim(), row.classCode.trim()].filter(Boolean).join(" · ") ||
+      `Encounter ${index + 1}`,
+  }));
+}
+
+function payloadEncounterIndex(encounterIndex: string): number | undefined {
+  if (encounterIndex === "") return undefined;
+  const n = Number.parseInt(encounterIndex, 10);
+  if (Number.isNaN(n) || n < 0) return undefined;
+  return n;
+}
+
+function EncounterSelect({
+  encounterRows,
+  value,
+  onChange,
+}: {
+  encounterRows: EncounterRow[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const opts = encounterPayloadOptions(encounterRows);
+  if (opts.length === 0) {
+    return (
+      <div className="field" style={{ gridColumn: "1 / -1" }}>
+        <label>Encounter (optional)</label>
+        <p className="lead" style={{ margin: 0, fontSize: "0.9rem" }}>
+          Add encounters on the Encounter tab to link this row to a saved visit.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="field" style={{ gridColumn: "1 / -1" }}>
+      <label>Encounter (optional)</label>
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— None —</option>
+        {opts.map((opt) => (
+          <option key={opt.index} value={String(opt.index)}>
+            {opt.label} (payload index {opt.index})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function PatientEntry() {
   const [family, setFamily] = useState("");
   const [given, setGiven] = useState("");
@@ -337,9 +430,114 @@ export default function PatientEntry() {
   const [error, setError] = useState<string | null>(null);
 
   const [activeMainTab, setActiveMainTab] = useState<MainTabId>("patient");
+  const [draftMessage, setDraftMessage] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      if (d.v !== 1) return;
+      const mt = d.activeMainTab;
+      if (typeof mt === "string" && MAIN_TABS.some((t) => t.id === mt)) {
+        setActiveMainTab(mt as MainTabId);
+      }
+      const mst = d.activeMedSubTab;
+      if (typeof mst === "string" && MED_SUB_TABS.some((t) => t.id === mst)) {
+        setActiveMedSubTab(mst as MedSubTabId);
+      }
+      const s = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : undefined);
+      const b = (k: string) => (typeof d[k] === "boolean" ? (d[k] as boolean) : undefined);
+      if (s("family") !== undefined) setFamily(s("family")!);
+      if (s("given") !== undefined) setGiven(s("given")!);
+      if (s("gender") !== undefined) setGender(s("gender")!);
+      if (s("birthDate") !== undefined) setBirthDate(s("birthDate")!);
+      if (s("phone") !== undefined) setPhone(s("phone")!);
+      if (s("email") !== undefined) setEmail(s("email")!);
+      if (s("addressLine") !== undefined) setAddressLine(s("addressLine")!);
+      if (s("city") !== undefined) setCity(s("city")!);
+      if (s("state") !== undefined) setState(s("state")!);
+      if (s("postalCode") !== undefined) setPostalCode(s("postalCode")!);
+      if (b("patientActive") !== undefined) setPatientActive(b("patientActive")!);
+      if (s("country") !== undefined) setCountry(s("country")!);
+      if (s("identifierSystem") !== undefined) setIdentifierSystem(s("identifierSystem")!);
+      if (s("identifierValue") !== undefined) setIdentifierValue(s("identifierValue")!);
+      if (Array.isArray(d.practitionerRows)) setPractitionerRows(d.practitionerRows as PractitionerRow[]);
+      if (Array.isArray(d.labs)) setLabs(d.labs as LabRow[]);
+      if (Array.isArray(d.diagnosticReports)) setDiagnosticReports(d.diagnosticReports as DiagnosticReportRow[]);
+      if (Array.isArray(d.observations)) setObservations(d.observations as ObsRow[]);
+      if (Array.isArray(d.conditions)) setConditions(d.conditions as CondRow[]);
+      if (Array.isArray(d.procedures)) setProcedures(d.procedures as ProcedureRow[]);
+      if (Array.isArray(d.allergies)) setAllergies(d.allergies as AllergyRow[]);
+      if (Array.isArray(d.encounters)) setEncounters(d.encounters as EncounterRow[]);
+      if (Array.isArray(d.coverageRows)) setCoverageRows(d.coverageRows as CoverageRow[]);
+      if (Array.isArray(d.medicationRequests)) setMedicationRequests(d.medicationRequests as MedicationRequestRow[]);
+      if (Array.isArray(d.medicationAdministrations))
+        setMedicationAdministrations(d.medicationAdministrations as MedicationAdministrationRow[]);
+      if (Array.isArray(d.medicationDispenses)) setMedicationDispenses(d.medicationDispenses as MedicationDispenseRow[]);
+      if (Array.isArray(d.medicationStatements)) setMedicationStatements(d.medicationStatements as MedicationStatementRow[]);
+      if (Array.isArray(d.medicationProducts)) setMedicationProducts(d.medicationProducts as MedicationProductRow[]);
+      if (Array.isArray(d.immunizations)) setImmunizations(d.immunizations as ImmunizationRow[]);
+      setDraftMessage("Restored local draft from this browser.");
+      window.setTimeout(() => setDraftMessage(null), 5000);
+    } catch {
+      /* ignore corrupt draft */
+    }
+  }, []);
+
+  function saveDraft() {
+    try {
+      const payload = {
+        v: 1 as const,
+        activeMainTab,
+        activeMedSubTab,
+        family,
+        given,
+        gender,
+        birthDate,
+        phone,
+        email,
+        addressLine,
+        city,
+        state,
+        postalCode,
+        patientActive,
+        country,
+        identifierSystem,
+        identifierValue,
+        practitionerRows,
+        labs,
+        diagnosticReports,
+        observations,
+        conditions,
+        procedures,
+        allergies,
+        encounters,
+        coverageRows,
+        medicationRequests,
+        medicationAdministrations,
+        medicationDispenses,
+        medicationStatements,
+        medicationProducts,
+        immunizations,
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+      setError(null);
+      setDraftMessage("Draft saved in this browser. Use Save patient & clinical data on the last tab to send to the server.");
+      window.setTimeout(() => setDraftMessage(null), 6000);
+    } catch {
+      setError("Could not save draft (storage may be full or disabled).");
+    }
+  }
+
+  function goNextTab() {
+    const idx = MAIN_TABS.findIndex((t) => t.id === activeMainTab);
+    if (idx >= 0 && idx < MAIN_TABS.length - 1) {
+      setActiveMainTab(MAIN_TABS[idx + 1]!.id);
+    }
+  }
+
+  async function ingestSubmit() {
     setBusy(true);
     setError(null);
     setResult(null);
@@ -368,6 +566,7 @@ export default function PatientEntry() {
           identifierSystem: row.identifierSystem.trim() || undefined,
           identifierValue: row.identifierValue.trim() || undefined,
           specialty: row.specialty.trim() || undefined,
+          encounterIndex: payloadEncounterIndex(row.encounterIndex),
         };
       })
       .filter((row): row is NonNullable<typeof row> => row != null);
@@ -399,6 +598,7 @@ export default function PatientEntry() {
           effectiveDateTime: l.effectiveDateTime
             ? new Date(l.effectiveDateTime).toISOString()
             : undefined,
+          encounterIndex: payloadEncounterIndex(l.encounterIndex),
         })),
       diagnosticReports: diagnosticReports
         .filter((dr) => dr.code.trim())
@@ -410,6 +610,7 @@ export default function PatientEntry() {
             ? new Date(dr.effectiveDateTime).toISOString()
             : undefined,
           issued: dr.issued ? new Date(dr.issued).toISOString() : undefined,
+          encounterIndex: payloadEncounterIndex(dr.encounterIndex),
         })),
       observations: observations
         .filter((o) => o.code.trim())
@@ -420,6 +621,7 @@ export default function PatientEntry() {
           effectiveDateTime: o.effectiveDateTime
             ? new Date(o.effectiveDateTime).toISOString()
             : undefined,
+          encounterIndex: payloadEncounterIndex(o.encounterIndex),
         })),
       conditions: conditions
         .filter((c) => c.code.trim())
@@ -429,6 +631,7 @@ export default function PatientEntry() {
           verificationStatus: c.verificationStatus || undefined,
           onsetDateTime: c.onsetDateTime ? new Date(c.onsetDateTime).toISOString() : undefined,
           recordedDate: c.recordedDate ? new Date(c.recordedDate).toISOString() : undefined,
+          encounterIndex: payloadEncounterIndex(c.encounterIndex),
         })),
       procedures: procedures
         .filter((p) => p.code.trim())
@@ -439,6 +642,7 @@ export default function PatientEntry() {
             ? new Date(p.performedDateTime).toISOString()
             : undefined,
           bodySite: p.bodySite.trim() || undefined,
+          encounterIndex: payloadEncounterIndex(p.encounterIndex),
         })),
       allergyIntolerances: allergies
         .filter((a) => a.code.trim())
@@ -450,6 +654,7 @@ export default function PatientEntry() {
           code: a.code.trim(),
           reaction: a.reaction.trim() || undefined,
           onsetDateTime: a.onsetDateTime ? new Date(a.onsetDateTime).toISOString() : undefined,
+          encounterIndex: payloadEncounterIndex(a.encounterIndex),
         })),
       encounters: encounters
         .filter(
@@ -507,6 +712,7 @@ export default function PatientEntry() {
           dosageText: m.dosageText.trim() || undefined,
           authoredOn: m.authoredOn ? new Date(m.authoredOn).toISOString() : undefined,
           requesterText: m.requesterText.trim() || undefined,
+          encounterIndex: payloadEncounterIndex(m.encounterIndex),
         })),
       medicationAdministrations: medicationAdministrations
         .filter((m) => m.medicationCode.trim())
@@ -518,6 +724,7 @@ export default function PatientEntry() {
             : undefined,
           doseText: m.doseText.trim() || undefined,
           routeText: m.routeText.trim() || undefined,
+          encounterIndex: payloadEncounterIndex(m.encounterIndex),
         })),
       medicationDispenses: medicationDispenses
         .filter((m) => m.medicationCode.trim())
@@ -530,6 +737,7 @@ export default function PatientEntry() {
             whenHandedOver: m.whenHandedOver ? new Date(m.whenHandedOver).toISOString() : undefined,
             quantityText: m.quantityText.trim() || undefined,
             daysSupply: days != null && !Number.isNaN(days) ? days : undefined,
+            encounterIndex: payloadEncounterIndex(m.encounterIndex),
           };
         }),
       medicationStatements: medicationStatements
@@ -541,6 +749,7 @@ export default function PatientEntry() {
             ? new Date(m.effectiveDateTime).toISOString()
             : undefined,
           dosageText: m.dosageText.trim() || undefined,
+          encounterIndex: payloadEncounterIndex(m.encounterIndex),
         })),
       medications: medicationProducts
         .filter((m) => m.code.trim())
@@ -549,6 +758,7 @@ export default function PatientEntry() {
           status: m.status.trim() || undefined,
           form: m.form.trim() || undefined,
           strength: m.strength.trim() || undefined,
+          encounterIndex: payloadEncounterIndex(m.encounterIndex),
         })),
       immunizations: immunizations
         .filter((im) => im.vaccineCode.trim())
@@ -560,6 +770,7 @@ export default function PatientEntry() {
             : undefined,
           lotNumber: im.lotNumber.trim() || undefined,
           manufacturerText: im.manufacturerText.trim() || undefined,
+          encounterIndex: payloadEncounterIndex(im.encounterIndex),
         })),
     };
 
@@ -569,6 +780,11 @@ export default function PatientEntry() {
         body: JSON.stringify(body),
       });
       setResult(saved.id);
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -579,17 +795,22 @@ export default function PatientEntry() {
   return (
     <div className="patient-entry-page">
       <div className="patient-entry-inner">
-        <form onSubmit={submit}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (activeMainTab !== "medication") return;
+            void ingestSubmit();
+          }}
+        >
       <h1>Manual patient entry</h1>
       <p className="lead">
-        Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit.{" "}
-        <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong> (non-laboratory),{" "}
-        <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), <strong>Condition</strong>,{" "}
-        <strong>Procedure</strong>, <strong>Allergy intolerance</strong>, <strong>Encounter</strong>, <strong>Insurance</strong>{" "}
-        (Coverage), and <strong>Medication &amp; vaccine</strong> (sub-tabs for each FHIR resource type) have fields.
+        Use the tabs in any order; nothing is required until you finish. <strong>Save as draft</strong> stores your work in
+        this browser (works offline). <strong>Save and next</strong> moves to the next tab. On the last tab,{" "}
+        <strong>Save patient &amp; clinical data</strong> sends everything to the server in one request.
       </p>
 
       {error && <div className="msg err">{error}</div>}
+      {draftMessage && <div className="msg ok">{draftMessage}</div>}
       {result && (
         <div className="msg ok">
           Saved patient id <code>{result}</code> — you can paste this id on the Upload
@@ -653,7 +874,6 @@ export default function PatientEntry() {
               value={given}
               onChange={(e) => setGiven(e.target.value)}
               placeholder="Jane, Q"
-              required
             />
           </div>
           <div className="field">
@@ -780,6 +1000,13 @@ export default function PatientEntry() {
                 }
               />
             </div>
+            <EncounterSelect
+              encounterRows={encounters}
+              value={row.encounterIndex}
+              onChange={(v) =>
+                setObservations(observations.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))
+              }
+            />
           </div>
         ))}
         <button type="button" className="btn btn-ghost" onClick={() => setObservations([...observations, emptyObs()])}>
@@ -863,6 +1090,11 @@ export default function PatientEntry() {
                 }
               />
             </div>
+            <EncounterSelect
+              encounterRows={encounters}
+              value={row.encounterIndex}
+              onChange={(v) => setConditions(conditions.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))}
+            />
           </div>
         ))}
         <button type="button" className="btn btn-ghost" onClick={() => setConditions([...conditions, emptyCond()])}>
@@ -959,6 +1191,13 @@ export default function PatientEntry() {
                   }
                 />
               </div>
+              <EncounterSelect
+                encounterRows={encounters}
+                value={row.encounterIndex}
+                onChange={(v) =>
+                  setPractitionerRows(practitionerRows.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))
+                }
+              />
             </div>
           ))}
           <button
@@ -1052,6 +1291,13 @@ export default function PatientEntry() {
                   }
                 />
               </div>
+              <EncounterSelect
+                encounterRows={encounters}
+                value={row.encounterIndex}
+                onChange={(v) =>
+                  setDiagnosticReports(diagnosticReports.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))
+                }
+              />
             </div>
           ))}
           <button
@@ -1109,6 +1355,11 @@ export default function PatientEntry() {
                   }
                 />
               </div>
+              <EncounterSelect
+                encounterRows={encounters}
+                value={row.encounterIndex}
+                onChange={(v) => setLabs(labs.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))}
+              />
             </div>
           ))}
           <button type="button" className="btn btn-ghost" onClick={() => setLabs([...labs, emptyLab()])}>
@@ -1185,6 +1436,11 @@ export default function PatientEntry() {
                   }
                 />
               </div>
+              <EncounterSelect
+                encounterRows={encounters}
+                value={row.encounterIndex}
+                onChange={(v) => setProcedures(procedures.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))}
+              />
             </div>
           ))}
           <button type="button" className="btn btn-ghost" onClick={() => setProcedures([...procedures, emptyProcedure()])}>
@@ -1294,6 +1550,11 @@ export default function PatientEntry() {
                   }
                 />
               </div>
+              <EncounterSelect
+                encounterRows={encounters}
+                value={row.encounterIndex}
+                onChange={(v) => setAllergies(allergies.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))}
+              />
             </div>
           ))}
           <button type="button" className="btn btn-ghost" onClick={() => setAllergies([...allergies, emptyAllergy()])}>
@@ -1651,6 +1912,15 @@ export default function PatientEntry() {
                     }
                   />
                 </div>
+                <EncounterSelect
+                  encounterRows={encounters}
+                  value={row.encounterIndex}
+                  onChange={(v) =>
+                    setMedicationRequests(
+                      medicationRequests.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)),
+                    )
+                  }
+                />
               </div>
             ))}
             <button
@@ -1735,6 +2005,15 @@ export default function PatientEntry() {
                     }
                   />
                 </div>
+                <EncounterSelect
+                  encounterRows={encounters}
+                  value={row.encounterIndex}
+                  onChange={(v) =>
+                    setMedicationAdministrations(
+                      medicationAdministrations.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)),
+                    )
+                  }
+                />
               </div>
             ))}
             <button
@@ -1824,6 +2103,13 @@ export default function PatientEntry() {
                     inputMode="numeric"
                   />
                 </div>
+                <EncounterSelect
+                  encounterRows={encounters}
+                  value={row.encounterIndex}
+                  onChange={(v) =>
+                    setMedicationDispenses(medicationDispenses.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))
+                  }
+                />
               </div>
             ))}
             <button
@@ -1898,6 +2184,15 @@ export default function PatientEntry() {
                     }
                   />
                 </div>
+                <EncounterSelect
+                  encounterRows={encounters}
+                  value={row.encounterIndex}
+                  onChange={(v) =>
+                    setMedicationStatements(
+                      medicationStatements.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)),
+                    )
+                  }
+                />
               </div>
             ))}
             <button
@@ -1960,6 +2255,13 @@ export default function PatientEntry() {
                     }
                   />
                 </div>
+                <EncounterSelect
+                  encounterRows={encounters}
+                  value={row.encounterIndex}
+                  onChange={(v) =>
+                    setMedicationProducts(medicationProducts.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))
+                  }
+                />
               </div>
             ))}
             <button
@@ -2034,6 +2336,13 @@ export default function PatientEntry() {
                     }
                   />
                 </div>
+                <EncounterSelect
+                  encounterRows={encounters}
+                  value={row.encounterIndex}
+                  onChange={(v) =>
+                    setImmunizations(immunizations.map((r, j) => (j === i ? { ...r, encounterIndex: v } : r)))
+                  }
+                />
               </div>
             ))}
             <button type="button" className="btn btn-ghost" onClick={() => setImmunizations([...immunizations, emptyImmunization()])}>
@@ -2043,9 +2352,20 @@ export default function PatientEntry() {
         </div>
       </div>
 
-      <button type="submit" className="btn" disabled={busy}>
-        {busy ? "Saving…" : "Save patient & clinical data"}
-      </button>
+      <div className="pe-tab-actions">
+        <button type="button" className="btn btn-ghost" onClick={saveDraft}>
+          Save as draft
+        </button>
+        {activeMainTab === "medication" ? (
+          <button type="submit" className="btn" disabled={busy}>
+            {busy ? "Saving…" : "Save patient & clinical data"}
+          </button>
+        ) : (
+          <button type="button" className="btn" onClick={goNextTab}>
+            Save and next
+          </button>
+        )}
+      </div>
         </form>
       </div>
     </div>
