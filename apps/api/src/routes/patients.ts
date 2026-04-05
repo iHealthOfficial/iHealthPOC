@@ -1,7 +1,81 @@
+import type { Prisma } from "@prisma/client";
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { toFhirCollectionBundle } from "../fhir/mappers.js";
+import { queryString } from "../queryParams.js";
 import { paramString } from "../routeParams.js";
+
+const FILTER_STRING_FIELDS = [
+  "family",
+  "gender",
+  "phone",
+  "email",
+  "addressLine",
+  "city",
+  "state",
+  "postalCode",
+  "country",
+] as const;
+
+const SEARCH_FIELDS = [...FILTER_STRING_FIELDS, "given", "active"] as const;
+type SearchField = (typeof SEARCH_FIELDS)[number];
+
+function collectPatientQuery(req: Request): Record<string, string | undefined> {
+  const q = req.query;
+  const out: Record<string, string | undefined> = {};
+  const keys = [
+    "active",
+    ...FILTER_STRING_FIELDS,
+    "birthDateFrom",
+    "birthDateTo",
+    "searchField",
+    "search",
+  ] as const;
+  for (const k of keys) {
+    out[k] = queryString(q[k]);
+  }
+  return out;
+}
+
+function buildPatientFilter(q: Record<string, string | undefined>): Prisma.PatientWhereInput {
+  const and: Prisma.PatientWhereInput[] = [];
+
+  if (q.active === "true") and.push({ active: true });
+  if (q.active === "false") and.push({ active: false });
+
+  for (const f of FILTER_STRING_FIELDS) {
+    const v = q[f]?.trim();
+    if (v) and.push({ [f]: { contains: v } } as Prisma.PatientWhereInput);
+  }
+
+  const bd: Prisma.DateTimeNullableFilter = {};
+  const dFrom = q.birthDateFrom ? parseDate(q.birthDateFrom) : undefined;
+  const dTo = q.birthDateTo ? parseDate(q.birthDateTo) : undefined;
+  if (dFrom) bd.gte = dFrom;
+  if (dTo) {
+    const end = new Date(dTo);
+    end.setUTCHours(23, 59, 59, 999);
+    bd.lte = end;
+  }
+  if (Object.keys(bd).length) and.push({ birthDate: bd });
+
+  const sf = q.searchField?.trim() as SearchField | undefined;
+  const sv = q.search?.trim();
+  if (sf && sv && (SEARCH_FIELDS as readonly string[]).includes(sf)) {
+    if (sf === "given") {
+      and.push({ given: { contains: sv } });
+    } else if (sf === "active") {
+      const low = sv.toLowerCase();
+      if (["true", "yes", "1"].includes(low)) and.push({ active: true });
+      else if (["false", "no", "0"].includes(low)) and.push({ active: false });
+    } else {
+      and.push({ [sf]: { contains: sv } } as Prisma.PatientWhereInput);
+    }
+  }
+
+  return and.length ? { AND: and } : {};
+}
 
 const patientCore = z.object({
   family: z.string().optional(),
@@ -53,14 +127,51 @@ function parseDate(s: string | undefined): Date | undefined {
 }
 
 export function registerPatientRoutes(app: Express): void {
-  app.get("/api/patients", async (_req: Request, res: Response) => {
+  app.get("/api/patients", async (req: Request, res: Response) => {
+    const q = collectPatientQuery(req);
+    const where = buildPatientFilter(q);
     const list = await prisma.patient.findMany({
+      where,
       orderBy: { updatedAt: "desc" },
       include: {
         _count: { select: { observations: true, conditions: true, uploads: true } },
       },
     });
-    res.json(list);
+    const ids = list.map((p) => p.id);
+    const labRows =
+      ids.length > 0
+        ? await prisma.observation.groupBy({
+            by: ["patientId"],
+            where: { category: "laboratory", patientId: { in: ids } },
+            _count: { _all: true },
+          })
+        : [];
+    const labMap = new Map(labRows.map((r) => [r.patientId, r._count._all]));
+    const enriched = list.map((p) => ({
+      ...p,
+      _count: {
+        ...p._count,
+        laboratories: labMap.get(p.id) ?? 0,
+      },
+    }));
+    res.json(enriched);
+  });
+
+  app.get("/api/patients/:id/fhir", async (req: Request, res: Response) => {
+    const id = paramString(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "Missing id" });
+      return;
+    }
+    const p = await prisma.patient.findUnique({
+      where: { id },
+      include: { observations: true, conditions: true, uploads: true },
+    });
+    if (!p) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.type("json").json(toFhirCollectionBundle(p));
   });
 
   app.get("/api/patients/:id", async (req: Request, res: Response) => {

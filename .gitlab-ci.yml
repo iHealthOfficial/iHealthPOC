@@ -32,10 +32,13 @@ install_deps:
       - apps/web/node_modules/
     expire_in: 1 hour
 
+# API "lint" is `tsc --noEmit`, which requires a generated @prisma/client.
+# Artifacts/cache from npm workspaces sometimes omit hoisted .prisma output; generate explicitly.
 lint:
   stage: lint
   needs: [install_deps]
   script:
+    - cd apps/api && npx prisma generate && cd ../..
     - npm run lint
 
 build:
