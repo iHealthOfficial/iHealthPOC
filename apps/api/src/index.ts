@@ -1,6 +1,6 @@
+import "./loadEnv.js";
 import fs from "node:fs";
 import path from "node:path";
-import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import { ensureUploadsDir, webDistDir } from "./paths.js";
