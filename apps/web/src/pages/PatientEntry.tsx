@@ -81,6 +81,53 @@ type DiagnosticReportRow = {
   issued: string;
 };
 
+type MedicationRequestRow = {
+  status: string;
+  intent: string;
+  medicationCode: string;
+  dosageText: string;
+  authoredOn: string;
+  requesterText: string;
+};
+
+type MedicationAdministrationRow = {
+  status: string;
+  medicationCode: string;
+  effectiveDateTime: string;
+  doseText: string;
+  routeText: string;
+};
+
+type MedicationDispenseRow = {
+  status: string;
+  medicationCode: string;
+  whenHandedOver: string;
+  quantityText: string;
+  daysSupply: string;
+};
+
+type MedicationStatementRow = {
+  status: string;
+  medicationCode: string;
+  effectiveDateTime: string;
+  dosageText: string;
+};
+
+type MedicationProductRow = {
+  code: string;
+  status: string;
+  form: string;
+  strength: string;
+};
+
+type ImmunizationRow = {
+  status: string;
+  vaccineCode: string;
+  occurrenceDateTime: string;
+  lotNumber: string;
+  manufacturerText: string;
+};
+
 const emptyLab = (): LabRow => ({
   code: "",
   valueQuantity: "",
@@ -158,6 +205,64 @@ const emptyDiagnosticReport = (): DiagnosticReportRow => ({
   issued: "",
 });
 
+const emptyMedicationRequest = (): MedicationRequestRow => ({
+  status: "active",
+  intent: "order",
+  medicationCode: "",
+  dosageText: "",
+  authoredOn: "",
+  requesterText: "",
+});
+
+const emptyMedicationAdministration = (): MedicationAdministrationRow => ({
+  status: "completed",
+  medicationCode: "",
+  effectiveDateTime: "",
+  doseText: "",
+  routeText: "",
+});
+
+const emptyMedicationDispense = (): MedicationDispenseRow => ({
+  status: "completed",
+  medicationCode: "",
+  whenHandedOver: "",
+  quantityText: "",
+  daysSupply: "",
+});
+
+const emptyMedicationStatement = (): MedicationStatementRow => ({
+  status: "active",
+  medicationCode: "",
+  effectiveDateTime: "",
+  dosageText: "",
+});
+
+const emptyMedicationProduct = (): MedicationProductRow => ({
+  code: "",
+  status: "active",
+  form: "",
+  strength: "",
+});
+
+const emptyImmunization = (): ImmunizationRow => ({
+  status: "completed",
+  vaccineCode: "",
+  occurrenceDateTime: "",
+  lotNumber: "",
+  manufacturerText: "",
+});
+
+const MED_SUB_TABS = [
+  { id: "request" as const, label: "MedicationRequest" },
+  { id: "administration" as const, label: "MedicationAdministration" },
+  { id: "dispense" as const, label: "MedicationDispense" },
+  { id: "statement" as const, label: "MedicationStatement" },
+  { id: "medication" as const, label: "Medication" },
+  { id: "immunization" as const, label: "Immunization" },
+] as const;
+
+type MedSubTabId = (typeof MED_SUB_TABS)[number]["id"];
+
 /** Main FHIR resource tabs (chunk 3: UI + state only; chunk 4 wires section visibility). */
 const MAIN_TABS = [
   { id: "patient" as const, label: "Patient" },
@@ -218,6 +323,14 @@ export default function PatientEntry() {
   const [allergies, setAllergies] = useState<AllergyRow[]>([]);
   const [encounters, setEncounters] = useState<EncounterRow[]>([]);
   const [coverageRows, setCoverageRows] = useState<CoverageRow[]>([]);
+
+  const [activeMedSubTab, setActiveMedSubTab] = useState<MedSubTabId>("request");
+  const [medicationRequests, setMedicationRequests] = useState<MedicationRequestRow[]>([]);
+  const [medicationAdministrations, setMedicationAdministrations] = useState<MedicationAdministrationRow[]>([]);
+  const [medicationDispenses, setMedicationDispenses] = useState<MedicationDispenseRow[]>([]);
+  const [medicationStatements, setMedicationStatements] = useState<MedicationStatementRow[]>([]);
+  const [medicationProducts, setMedicationProducts] = useState<MedicationProductRow[]>([]);
+  const [immunizations, setImmunizations] = useState<ImmunizationRow[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -385,6 +498,69 @@ export default function PatientEntry() {
           periodStart: c.periodStart ? new Date(c.periodStart).toISOString() : undefined,
           periodEnd: c.periodEnd ? new Date(c.periodEnd).toISOString() : undefined,
         })),
+      medicationRequests: medicationRequests
+        .filter((m) => m.medicationCode.trim())
+        .map((m) => ({
+          status: m.status.trim() || undefined,
+          intent: m.intent.trim() || undefined,
+          medicationCode: m.medicationCode.trim(),
+          dosageText: m.dosageText.trim() || undefined,
+          authoredOn: m.authoredOn ? new Date(m.authoredOn).toISOString() : undefined,
+          requesterText: m.requesterText.trim() || undefined,
+        })),
+      medicationAdministrations: medicationAdministrations
+        .filter((m) => m.medicationCode.trim())
+        .map((m) => ({
+          status: m.status.trim() || undefined,
+          medicationCode: m.medicationCode.trim(),
+          effectiveDateTime: m.effectiveDateTime
+            ? new Date(m.effectiveDateTime).toISOString()
+            : undefined,
+          doseText: m.doseText.trim() || undefined,
+          routeText: m.routeText.trim() || undefined,
+        })),
+      medicationDispenses: medicationDispenses
+        .filter((m) => m.medicationCode.trim())
+        .map((m) => {
+          const ds = m.daysSupply.trim();
+          const days = ds === "" ? undefined : Number.parseInt(ds, 10);
+          return {
+            status: m.status.trim() || undefined,
+            medicationCode: m.medicationCode.trim(),
+            whenHandedOver: m.whenHandedOver ? new Date(m.whenHandedOver).toISOString() : undefined,
+            quantityText: m.quantityText.trim() || undefined,
+            daysSupply: days != null && !Number.isNaN(days) ? days : undefined,
+          };
+        }),
+      medicationStatements: medicationStatements
+        .filter((m) => m.medicationCode.trim())
+        .map((m) => ({
+          status: m.status.trim() || undefined,
+          medicationCode: m.medicationCode.trim(),
+          effectiveDateTime: m.effectiveDateTime
+            ? new Date(m.effectiveDateTime).toISOString()
+            : undefined,
+          dosageText: m.dosageText.trim() || undefined,
+        })),
+      medications: medicationProducts
+        .filter((m) => m.code.trim())
+        .map((m) => ({
+          code: m.code.trim(),
+          status: m.status.trim() || undefined,
+          form: m.form.trim() || undefined,
+          strength: m.strength.trim() || undefined,
+        })),
+      immunizations: immunizations
+        .filter((im) => im.vaccineCode.trim())
+        .map((im) => ({
+          status: im.status.trim() || undefined,
+          vaccineCode: im.vaccineCode.trim(),
+          occurrenceDateTime: im.occurrenceDateTime
+            ? new Date(im.occurrenceDateTime).toISOString()
+            : undefined,
+          lotNumber: im.lotNumber.trim() || undefined,
+          manufacturerText: im.manufacturerText.trim() || undefined,
+        })),
     };
 
     try {
@@ -409,8 +585,8 @@ export default function PatientEntry() {
         Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit.{" "}
         <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong> (non-laboratory),{" "}
         <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), <strong>Condition</strong>,{" "}
-        <strong>Procedure</strong>, <strong>Allergy intolerance</strong>, <strong>Encounter</strong>, and <strong>Insurance</strong>{" "}
-        (Coverage) have fields; the Medication tab is still a placeholder until later chunks.
+        <strong>Procedure</strong>, <strong>Allergy intolerance</strong>, <strong>Encounter</strong>, <strong>Insurance</strong>{" "}
+        (Coverage), and <strong>Medication &amp; vaccine</strong> (sub-tabs for each FHIR resource type) have fields.
       </p>
 
       {error && <div className="msg err">{error}</div>}
@@ -1353,11 +1529,513 @@ export default function PatientEntry() {
         hidden={activeMainTab !== "medication"}
       >
         <div className="card">
-          <h2>Medication &amp; vaccine (FHIR medication resources)</h2>
-          <p className="lead" style={{ marginBottom: 0 }}>
-            Sub-tabs for MedicationRequest, administration, dispense, statement, Medication, and Immunization will be
-            added in later chunks.
+          <h2>Medication &amp; vaccine</h2>
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Use the sub-tabs for each FHIR resource. Medication code (or vaccine code) is required to save a row in that
+            section.
           </p>
+
+          <div className="pe-med-tabs" role="tablist" aria-label="Medication and immunization resource types">
+            {MED_SUB_TABS.map((tab) => {
+              const sel = activeMedSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={sel}
+                  className={["pe-med-tab", sel ? "pe-med-tab--active" : ""].filter(Boolean).join(" ")}
+                  onClick={() => setActiveMedSubTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div hidden={activeMedSubTab !== "request"}>
+            <h3 className="pe-med-section-title">MedicationRequest</h3>
+            {medicationRequests.length === 0 && (
+              <p className="lead" style={{ marginBottom: "1rem" }}>
+                No rows — use Add below.
+              </p>
+            )}
+            {medicationRequests.map((row, i) => (
+              <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+                <div className="field">
+                  <label>Status</label>
+                  <select
+                    value={row.status}
+                    onChange={(e) =>
+                      setMedicationRequests(
+                        medicationRequests.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)),
+                      )
+                    }
+                  >
+                    <option value="active">active</option>
+                    <option value="on-hold">on-hold</option>
+                    <option value="cancelled">cancelled</option>
+                    <option value="completed">completed</option>
+                    <option value="entered-in-error">entered-in-error</option>
+                    <option value="stopped">stopped</option>
+                    <option value="draft">draft</option>
+                    <option value="unknown">unknown</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Intent</label>
+                  <select
+                    value={row.intent}
+                    onChange={(e) =>
+                      setMedicationRequests(
+                        medicationRequests.map((r, j) => (j === i ? { ...r, intent: e.target.value } : r)),
+                      )
+                    }
+                  >
+                    <option value="proposal">proposal</option>
+                    <option value="plan">plan</option>
+                    <option value="order">order</option>
+                    <option value="original-order">original-order</option>
+                    <option value="reflex-order">reflex-order</option>
+                    <option value="filler-order">filler-order</option>
+                    <option value="instance-order">instance-order</option>
+                    <option value="option">option</option>
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Medication (code / name)</label>
+                  <input
+                    value={row.medicationCode}
+                    onChange={(e) =>
+                      setMedicationRequests(
+                        medicationRequests.map((r, j) => (j === i ? { ...r, medicationCode: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Dosage instruction (text)</label>
+                  <input
+                    value={row.dosageText}
+                    onChange={(e) =>
+                      setMedicationRequests(
+                        medicationRequests.map((r, j) => (j === i ? { ...r, dosageText: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Authored on</label>
+                  <input
+                    type="datetime-local"
+                    value={row.authoredOn}
+                    onChange={(e) =>
+                      setMedicationRequests(
+                        medicationRequests.map((r, j) => (j === i ? { ...r, authoredOn: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Requester (text)</label>
+                  <input
+                    value={row.requesterText}
+                    onChange={(e) =>
+                      setMedicationRequests(
+                        medicationRequests.map((r, j) => (j === i ? { ...r, requesterText: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setMedicationRequests([...medicationRequests, emptyMedicationRequest()])}
+            >
+              Add MedicationRequest
+            </button>
+          </div>
+
+          <div hidden={activeMedSubTab !== "administration"}>
+            <h3 className="pe-med-section-title">MedicationAdministration</h3>
+            {medicationAdministrations.length === 0 && (
+              <p className="lead" style={{ marginBottom: "1rem" }}>
+                No rows — use Add below.
+              </p>
+            )}
+            {medicationAdministrations.map((row, i) => (
+              <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+                <div className="field">
+                  <label>Status</label>
+                  <select
+                    value={row.status}
+                    onChange={(e) =>
+                      setMedicationAdministrations(
+                        medicationAdministrations.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)),
+                      )
+                    }
+                  >
+                    <option value="in-progress">in-progress</option>
+                    <option value="not-done">not-done</option>
+                    <option value="on-hold">on-hold</option>
+                    <option value="completed">completed</option>
+                    <option value="entered-in-error">entered-in-error</option>
+                    <option value="stopped">stopped</option>
+                    <option value="unknown">unknown</option>
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Medication (code / name)</label>
+                  <input
+                    value={row.medicationCode}
+                    onChange={(e) =>
+                      setMedicationAdministrations(
+                        medicationAdministrations.map((r, j) => (j === i ? { ...r, medicationCode: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Effective (datetime)</label>
+                  <input
+                    type="datetime-local"
+                    value={row.effectiveDateTime}
+                    onChange={(e) =>
+                      setMedicationAdministrations(
+                        medicationAdministrations.map((r, j) => (j === i ? { ...r, effectiveDateTime: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Dose (text)</label>
+                  <input
+                    value={row.doseText}
+                    onChange={(e) =>
+                      setMedicationAdministrations(
+                        medicationAdministrations.map((r, j) => (j === i ? { ...r, doseText: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Route (text)</label>
+                  <input
+                    value={row.routeText}
+                    onChange={(e) =>
+                      setMedicationAdministrations(
+                        medicationAdministrations.map((r, j) => (j === i ? { ...r, routeText: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() =>
+                setMedicationAdministrations([...medicationAdministrations, emptyMedicationAdministration()])
+              }
+            >
+              Add MedicationAdministration
+            </button>
+          </div>
+
+          <div hidden={activeMedSubTab !== "dispense"}>
+            <h3 className="pe-med-section-title">MedicationDispense</h3>
+            {medicationDispenses.length === 0 && (
+              <p className="lead" style={{ marginBottom: "1rem" }}>
+                No rows — use Add below.
+              </p>
+            )}
+            {medicationDispenses.map((row, i) => (
+              <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+                <div className="field">
+                  <label>Status</label>
+                  <select
+                    value={row.status}
+                    onChange={(e) =>
+                      setMedicationDispenses(
+                        medicationDispenses.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)),
+                      )
+                    }
+                  >
+                    <option value="preparation">preparation</option>
+                    <option value="in-progress">in-progress</option>
+                    <option value="cancelled">cancelled</option>
+                    <option value="on-hold">on-hold</option>
+                    <option value="completed">completed</option>
+                    <option value="entered-in-error">entered-in-error</option>
+                    <option value="stopped">stopped</option>
+                    <option value="declined">declined</option>
+                    <option value="unknown">unknown</option>
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Medication (code / name)</label>
+                  <input
+                    value={row.medicationCode}
+                    onChange={(e) =>
+                      setMedicationDispenses(
+                        medicationDispenses.map((r, j) => (j === i ? { ...r, medicationCode: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>When handed over</label>
+                  <input
+                    type="datetime-local"
+                    value={row.whenHandedOver}
+                    onChange={(e) =>
+                      setMedicationDispenses(
+                        medicationDispenses.map((r, j) => (j === i ? { ...r, whenHandedOver: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Quantity (text)</label>
+                  <input
+                    value={row.quantityText}
+                    onChange={(e) =>
+                      setMedicationDispenses(
+                        medicationDispenses.map((r, j) => (j === i ? { ...r, quantityText: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Days supply (integer)</label>
+                  <input
+                    value={row.daysSupply}
+                    onChange={(e) =>
+                      setMedicationDispenses(
+                        medicationDispenses.map((r, j) => (j === i ? { ...r, daysSupply: e.target.value } : r)),
+                      )
+                    }
+                    inputMode="numeric"
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setMedicationDispenses([...medicationDispenses, emptyMedicationDispense()])}
+            >
+              Add MedicationDispense
+            </button>
+          </div>
+
+          <div hidden={activeMedSubTab !== "statement"}>
+            <h3 className="pe-med-section-title">MedicationStatement</h3>
+            {medicationStatements.length === 0 && (
+              <p className="lead" style={{ marginBottom: "1rem" }}>
+                No rows — use Add below.
+              </p>
+            )}
+            {medicationStatements.map((row, i) => (
+              <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+                <div className="field">
+                  <label>Status</label>
+                  <select
+                    value={row.status}
+                    onChange={(e) =>
+                      setMedicationStatements(
+                        medicationStatements.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)),
+                      )
+                    }
+                  >
+                    <option value="active">active</option>
+                    <option value="completed">completed</option>
+                    <option value="entered-in-error">entered-in-error</option>
+                    <option value="intended">intended</option>
+                    <option value="stopped">stopped</option>
+                    <option value="on-hold">on-hold</option>
+                    <option value="unknown">unknown</option>
+                    <option value="not-taken">not-taken</option>
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Medication (code / name)</label>
+                  <input
+                    value={row.medicationCode}
+                    onChange={(e) =>
+                      setMedicationStatements(
+                        medicationStatements.map((r, j) => (j === i ? { ...r, medicationCode: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Effective (datetime)</label>
+                  <input
+                    type="datetime-local"
+                    value={row.effectiveDateTime}
+                    onChange={(e) =>
+                      setMedicationStatements(
+                        medicationStatements.map((r, j) => (j === i ? { ...r, effectiveDateTime: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Dosage (text)</label>
+                  <input
+                    value={row.dosageText}
+                    onChange={(e) =>
+                      setMedicationStatements(
+                        medicationStatements.map((r, j) => (j === i ? { ...r, dosageText: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setMedicationStatements([...medicationStatements, emptyMedicationStatement()])}
+            >
+              Add MedicationStatement
+            </button>
+          </div>
+
+          <div hidden={activeMedSubTab !== "medication"}>
+            <h3 className="pe-med-section-title">Medication (product)</h3>
+            {medicationProducts.length === 0 && (
+              <p className="lead" style={{ marginBottom: "1rem" }}>
+                No rows — use Add below.
+              </p>
+            )}
+            {medicationProducts.map((row, i) => (
+              <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Medication code / name</label>
+                  <input
+                    value={row.code}
+                    onChange={(e) =>
+                      setMedicationProducts(medicationProducts.map((r, j) => (j === i ? { ...r, code: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Status</label>
+                  <select
+                    value={row.status}
+                    onChange={(e) =>
+                      setMedicationProducts(medicationProducts.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)))
+                    }
+                  >
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                    <option value="entered-in-error">entered-in-error</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Form (text)</label>
+                  <input
+                    value={row.form}
+                    onChange={(e) =>
+                      setMedicationProducts(medicationProducts.map((r, j) => (j === i ? { ...r, form: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Strength (text)</label>
+                  <input
+                    value={row.strength}
+                    onChange={(e) =>
+                      setMedicationProducts(
+                        medicationProducts.map((r, j) => (j === i ? { ...r, strength: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setMedicationProducts([...medicationProducts, emptyMedicationProduct()])}
+            >
+              Add Medication
+            </button>
+          </div>
+
+          <div hidden={activeMedSubTab !== "immunization"}>
+            <h3 className="pe-med-section-title">Immunization</h3>
+            {immunizations.length === 0 && (
+              <p className="lead" style={{ marginBottom: "1rem" }}>
+                No rows — use Add below.
+              </p>
+            )}
+            {immunizations.map((row, i) => (
+              <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+                <div className="field">
+                  <label>Status</label>
+                  <select
+                    value={row.status}
+                    onChange={(e) =>
+                      setImmunizations(immunizations.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)))
+                    }
+                  >
+                    <option value="completed">completed</option>
+                    <option value="entered-in-error">entered-in-error</option>
+                    <option value="not-done">not-done</option>
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Vaccine code / name</label>
+                  <input
+                    value={row.vaccineCode}
+                    onChange={(e) =>
+                      setImmunizations(immunizations.map((r, j) => (j === i ? { ...r, vaccineCode: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Occurrence (datetime)</label>
+                  <input
+                    type="datetime-local"
+                    value={row.occurrenceDateTime}
+                    onChange={(e) =>
+                      setImmunizations(
+                        immunizations.map((r, j) => (j === i ? { ...r, occurrenceDateTime: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>Lot number</label>
+                  <input
+                    value={row.lotNumber}
+                    onChange={(e) =>
+                      setImmunizations(immunizations.map((r, j) => (j === i ? { ...r, lotNumber: e.target.value } : r)))
+                    }
+                  />
+                </div>
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>Manufacturer (text)</label>
+                  <input
+                    value={row.manufacturerText}
+                    onChange={(e) =>
+                      setImmunizations(
+                        immunizations.map((r, j) => (j === i ? { ...r, manufacturerText: e.target.value } : r)),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <button type="button" className="btn btn-ghost" onClick={() => setImmunizations([...immunizations, emptyImmunization()])}>
+              Add Immunization
+            </button>
+          </div>
         </div>
       </div>
 
