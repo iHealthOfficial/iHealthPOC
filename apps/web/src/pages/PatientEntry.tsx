@@ -31,6 +31,15 @@ type PractitionerRow = {
   specialty: string;
 };
 
+/** FHIR DiagnosticReport — report-level metadata (lab values are Observations with category laboratory). */
+type DiagnosticReportRow = {
+  status: string;
+  code: string;
+  conclusion: string;
+  effectiveDateTime: string;
+  issued: string;
+};
+
 const emptyLab = (): LabRow => ({
   code: "",
   valueQuantity: "",
@@ -59,6 +68,14 @@ const emptyPractitioner = (): PractitionerRow => ({
   identifierSystem: "",
   identifierValue: "",
   specialty: "",
+});
+
+const emptyDiagnosticReport = (): DiagnosticReportRow => ({
+  status: "final",
+  code: "",
+  conclusion: "",
+  effectiveDateTime: "",
+  issued: "",
 });
 
 /** Main FHIR resource tabs (chunk 3: UI + state only; chunk 4 wires section visibility). */
@@ -96,6 +113,7 @@ export default function PatientEntry() {
   const [practitionerRows, setPractitionerRows] = useState<PractitionerRow[]>([]);
 
   const [labs, setLabs] = useState<LabRow[]>([emptyLab()]);
+  const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReportRow[]>([]);
   const [observations, setObservations] = useState<ObsRow[]>([]);
   const [conditions, setConditions] = useState<CondRow[]>([]);
 
@@ -167,6 +185,17 @@ export default function PatientEntry() {
             ? new Date(l.effectiveDateTime).toISOString()
             : undefined,
         })),
+      diagnosticReports: diagnosticReports
+        .filter((dr) => dr.code.trim())
+        .map((dr) => ({
+          status: dr.status.trim() || undefined,
+          code: dr.code.trim(),
+          conclusion: dr.conclusion.trim() || undefined,
+          effectiveDateTime: dr.effectiveDateTime
+            ? new Date(dr.effectiveDateTime).toISOString()
+            : undefined,
+          issued: dr.issued ? new Date(dr.issued).toISOString() : undefined,
+        })),
       observations: observations
         .filter((o) => o.code.trim())
         .map((o) => ({
@@ -206,8 +235,9 @@ export default function PatientEntry() {
       <h1>Manual patient entry</h1>
       <p className="lead">
         Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit.{" "}
-        <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong>, and{" "}
-        <strong>Condition</strong> have fields; other tabs are placeholders until their chunks land.
+        <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong> (non-laboratory),{" "}
+        <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), and <strong>Condition</strong>{" "}
+        have fields; other tabs are placeholders until their chunks land.
       </p>
 
       {error && <div className="msg err">{error}</div>}
@@ -345,59 +375,11 @@ export default function PatientEntry() {
         hidden={activeMainTab !== "observation"}
       >
       <div className="card">
-        <h2>Labs (FHIR Observation · laboratory)</h2>
-        {labs.map((row, i) => (
-          <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
-            <div className="field">
-              <label>Test code / name</label>
-              <input
-                value={row.code}
-                onChange={(e) =>
-                  setLabs(labs.map((r, j) => (j === i ? { ...r, code: e.target.value } : r)))
-                }
-              />
-            </div>
-            <div className="field">
-              <label>Value (numeric)</label>
-              <input
-                value={row.valueQuantity}
-                onChange={(e) =>
-                  setLabs(labs.map((r, j) => (j === i ? { ...r, valueQuantity: e.target.value } : r)))
-                }
-              />
-            </div>
-            <div className="field">
-              <label>Unit</label>
-              <input
-                value={row.valueQuantityUnit}
-                onChange={(e) =>
-                  setLabs(labs.map((r, j) => (j === i ? { ...r, valueQuantityUnit: e.target.value } : r)))
-                }
-                placeholder="mg/dL"
-              />
-            </div>
-            <div className="field">
-              <label>Effective datetime</label>
-              <input
-                type="datetime-local"
-                value={row.effectiveDateTime}
-                onChange={(e) =>
-                  setLabs(labs.map((r, j) => (j === i ? { ...r, effectiveDateTime: e.target.value } : r)))
-                }
-              />
-            </div>
-          </div>
-        ))}
-        <button type="button" className="btn btn-ghost" onClick={() => setLabs([...labs, emptyLab()])}>
-          Add lab row
-        </button>
-      </div>
-
-      <div className="card">
-        <h2>Other observations (FHIR Observation)</h2>
+        <h2>Observations (FHIR Observation)</h2>
         {observations.length === 0 && (
           <p className="lead" style={{ marginBottom: "1rem" }}>
-            Optional vitals, surveys, exam findings—each row is one Observation.
+            Vitals, surveys, exam findings, etc.—each row is one Observation. Laboratory results belong under the{" "}
+            <strong>Diagnostic report</strong> tab (stored as <code>laboratory</code> Observations).
           </p>
         )}
         {observations.map((row, i) => (
@@ -623,10 +605,142 @@ export default function PatientEntry() {
         hidden={activeMainTab !== "diagnosticReport"}
       >
         <div className="card">
-          <h2>Diagnostic report (FHIR DiagnosticReport)</h2>
-          <p className="lead" style={{ marginBottom: 0 }}>
-            Report-level fields (and links to lab observations) will be added in a later chunk.
+          <h2>Report (FHIR DiagnosticReport)</h2>
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Each row is a DiagnosticReport resource (title/code, conclusion, timing). Lab analyte rows below are saved as
+            FHIR Observations with category <code>laboratory</code>.
           </p>
+          {diagnosticReports.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No reports yet — use &quot;Add diagnostic report&quot; or enter lab rows only.
+            </p>
+          )}
+          {diagnosticReports.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field">
+                <label>Status</label>
+                <select
+                  value={row.status}
+                  onChange={(e) =>
+                    setDiagnosticReports(
+                      diagnosticReports.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)),
+                    )
+                  }
+                >
+                  <option value="final">final</option>
+                  <option value="preliminary">preliminary</option>
+                  <option value="amended">amended</option>
+                  <option value="corrected">corrected</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="entered-in-error">entered-in-error</option>
+                </select>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Report code / title</label>
+                <input
+                  value={row.code}
+                  onChange={(e) =>
+                    setDiagnosticReports(diagnosticReports.map((r, j) => (j === i ? { ...r, code: e.target.value } : r)))
+                  }
+                  placeholder="CBC panel, metabolic panel…"
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Conclusion</label>
+                <textarea
+                  value={row.conclusion}
+                  onChange={(e) =>
+                    setDiagnosticReports(
+                      diagnosticReports.map((r, j) => (j === i ? { ...r, conclusion: e.target.value } : r)),
+                    )
+                  }
+                  rows={2}
+                />
+              </div>
+              <div className="field">
+                <label>Effective datetime</label>
+                <input
+                  type="datetime-local"
+                  value={row.effectiveDateTime}
+                  onChange={(e) =>
+                    setDiagnosticReports(
+                      diagnosticReports.map((r, j) => (j === i ? { ...r, effectiveDateTime: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Issued</label>
+                <input
+                  type="datetime-local"
+                  value={row.issued}
+                  onChange={(e) =>
+                    setDiagnosticReports(diagnosticReports.map((r, j) => (j === i ? { ...r, issued: e.target.value } : r)))
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setDiagnosticReports([...diagnosticReports, emptyDiagnosticReport()])}
+          >
+            Add diagnostic report
+          </button>
+        </div>
+
+        <div className="card">
+          <h2>Lab results (FHIR Observation · laboratory)</h2>
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Each row becomes an Observation with category <code>laboratory</code>, typically referenced from a
+            DiagnosticReport in real FHIR; here they are captured alongside the report tab for convenience.
+          </p>
+          {labs.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field">
+                <label>Test code / name</label>
+                <input
+                  value={row.code}
+                  onChange={(e) =>
+                    setLabs(labs.map((r, j) => (j === i ? { ...r, code: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Value (numeric)</label>
+                <input
+                  value={row.valueQuantity}
+                  onChange={(e) =>
+                    setLabs(labs.map((r, j) => (j === i ? { ...r, valueQuantity: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Unit</label>
+                <input
+                  value={row.valueQuantityUnit}
+                  onChange={(e) =>
+                    setLabs(labs.map((r, j) => (j === i ? { ...r, valueQuantityUnit: e.target.value } : r)))
+                  }
+                  placeholder="mg/dL"
+                />
+              </div>
+              <div className="field">
+                <label>Effective datetime</label>
+                <input
+                  type="datetime-local"
+                  value={row.effectiveDateTime}
+                  onChange={(e) =>
+                    setLabs(labs.map((r, j) => (j === i ? { ...r, effectiveDateTime: e.target.value } : r)))
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost" onClick={() => setLabs([...labs, emptyLab()])}>
+            Add lab row
+          </button>
         </div>
       </div>
 
