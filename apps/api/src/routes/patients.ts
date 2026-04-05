@@ -149,6 +149,9 @@ const encounterIn = z.object({
   periodStart: z.string().optional(),
   periodEnd: z.string().optional(),
   practitionerIndex: z.number().int().nonnegative().nullable().optional(),
+  /** Business / legacy id from the source system (manual; not generated). */
+  legacyIdentifierSystem: z.string().optional(),
+  legacyIdentifierValue: z.string().optional(),
 });
 
 const coverageIn = z.object({
@@ -287,6 +290,293 @@ const patientIncludeAll = {
   immunizations: true,
 } as const;
 
+type IngestPayload = z.infer<typeof ingestBody>;
+
+function encounterIdAt(index: number | undefined, encounterIds: string[]): string | undefined {
+  if (index == null) return undefined;
+  if (index < 0 || index >= encounterIds.length) return undefined;
+  return encounterIds[index]!;
+}
+
+async function deletePatientClinicalChildren(tx: Prisma.TransactionClient, patientId: string): Promise<void> {
+  await tx.observation.deleteMany({ where: { patientId } });
+  await tx.condition.deleteMany({ where: { patientId } });
+  await tx.diagnosticReport.deleteMany({ where: { patientId } });
+  await tx.procedure.deleteMany({ where: { patientId } });
+  await tx.allergyIntolerance.deleteMany({ where: { patientId } });
+  await tx.medicationRequest.deleteMany({ where: { patientId } });
+  await tx.medicationAdministration.deleteMany({ where: { patientId } });
+  await tx.medicationDispense.deleteMany({ where: { patientId } });
+  await tx.medicationStatement.deleteMany({ where: { patientId } });
+  await tx.medication.deleteMany({ where: { patientId } });
+  await tx.immunization.deleteMany({ where: { patientId } });
+  await tx.encounter.deleteMany({ where: { patientId } });
+  await tx.practitioner.deleteMany({ where: { patientId } });
+  await tx.coverage.deleteMany({ where: { patientId } });
+}
+
+async function createPatientClinicalChildren(
+  tx: Prisma.TransactionClient,
+  patientId: string,
+  {
+    practitioners,
+    labs,
+    observations,
+    conditions,
+    diagnosticReports,
+    procedures,
+    allergyIntolerances,
+    encounters,
+    coverages,
+    medicationRequests,
+    medicationAdministrations,
+    medicationDispenses,
+    medicationStatements,
+    medications,
+    immunizations,
+  }: IngestPayload,
+) {
+  const practitionerIds: string[] = [];
+  for (const pr of practitioners) {
+    const row = await tx.practitioner.create({
+      data: {
+        patientId,
+        family: pr.family,
+        given: JSON.stringify(pr.given),
+        phone: pr.phone,
+        email: pr.email,
+        identifierSystem: pr.identifierSystem,
+        identifierValue: pr.identifierValue,
+        specialty: pr.specialty,
+      },
+    });
+    practitionerIds.push(row.id);
+  }
+
+  const encounterIds: string[] = [];
+  for (const enc of encounters) {
+    const idx = enc.practitionerIndex;
+    const practitionerId =
+      idx != null && idx >= 0 && idx < practitionerIds.length ? practitionerIds[idx]! : undefined;
+    const row = await tx.encounter.create({
+      data: {
+        patientId,
+        practitionerId,
+        status: enc.status,
+        classCode: enc.classCode,
+        typeText: enc.typeText,
+        periodStart: parseDate(enc.periodStart),
+        periodEnd: parseDate(enc.periodEnd),
+        legacyIdentifierSystem: enc.legacyIdentifierSystem,
+        legacyIdentifierValue: enc.legacyIdentifierValue,
+      },
+    });
+    encounterIds.push(row.id);
+  }
+
+  for (let i = 0; i < practitioners.length; i++) {
+    const pr = practitioners[i]!;
+    const eid = encounterIdAt(pr.encounterIndex, encounterIds);
+    if (eid) {
+      await tx.practitioner.update({
+        where: { id: practitionerIds[i]! },
+        data: { contextEncounterId: eid },
+      });
+    }
+  }
+
+  for (const lab of labs) {
+    await tx.observation.create({
+      data: {
+        patientId,
+        category: "laboratory",
+        code: lab.code,
+        valueString: lab.valueString,
+        valueQuantity: lab.valueQuantity,
+        valueQuantityUnit: lab.valueQuantityUnit,
+        effectiveDateTime: parseDate(lab.effectiveDateTime),
+        encounterId: encounterIdAt(lab.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const obs of observations) {
+    await tx.observation.create({
+      data: {
+        patientId,
+        category: obs.category || "survey",
+        code: obs.code,
+        valueString: obs.valueString,
+        valueQuantity: obs.valueQuantity,
+        valueQuantityUnit: obs.valueQuantityUnit,
+        effectiveDateTime: parseDate(obs.effectiveDateTime),
+        encounterId: encounterIdAt(obs.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const c of conditions) {
+    await tx.condition.create({
+      data: {
+        patientId,
+        clinicalStatus: c.clinicalStatus,
+        verificationStatus: c.verificationStatus,
+        code: c.code,
+        onsetDateTime: parseDate(c.onsetDateTime),
+        recordedDate: parseDate(c.recordedDate) ?? new Date(),
+        encounterId: encounterIdAt(c.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const dr of diagnosticReports) {
+    await tx.diagnosticReport.create({
+      data: {
+        patientId,
+        status: dr.status ?? "final",
+        code: dr.code,
+        conclusion: dr.conclusion,
+        effectiveDateTime: parseDate(dr.effectiveDateTime),
+        issued: parseDate(dr.issued),
+        encounterId: encounterIdAt(dr.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const proc of procedures) {
+    await tx.procedure.create({
+      data: {
+        patientId,
+        status: proc.status,
+        code: proc.code,
+        performedDateTime: parseDate(proc.performedDateTime),
+        bodySite: proc.bodySite,
+        encounterId: encounterIdAt(proc.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const a of allergyIntolerances) {
+    await tx.allergyIntolerance.create({
+      data: {
+        patientId,
+        clinicalStatus: a.clinicalStatus,
+        verificationStatus: a.verificationStatus,
+        type: a.type,
+        category: a.category,
+        code: a.code,
+        reaction: a.reaction,
+        onsetDateTime: parseDate(a.onsetDateTime),
+        encounterId: encounterIdAt(a.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const cov of coverages) {
+    await tx.coverage.create({
+      data: {
+        patientId,
+        status: cov.status,
+        insurerName: cov.insurerName,
+        planName: cov.planName,
+        subscriberId: cov.subscriberId,
+        memberId: cov.memberId,
+        relationshipText: cov.relationshipText,
+        periodStart: parseDate(cov.periodStart),
+        periodEnd: parseDate(cov.periodEnd),
+      },
+    });
+  }
+
+  for (const mr of medicationRequests) {
+    await tx.medicationRequest.create({
+      data: {
+        patientId,
+        status: mr.status,
+        intent: mr.intent,
+        medicationCode: mr.medicationCode,
+        dosageText: mr.dosageText,
+        authoredOn: parseDate(mr.authoredOn),
+        requesterText: mr.requesterText,
+        encounterId: encounterIdAt(mr.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const ma of medicationAdministrations) {
+    await tx.medicationAdministration.create({
+      data: {
+        patientId,
+        status: ma.status,
+        medicationCode: ma.medicationCode,
+        effectiveDateTime: parseDate(ma.effectiveDateTime),
+        doseText: ma.doseText,
+        routeText: ma.routeText,
+        encounterId: encounterIdAt(ma.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const md of medicationDispenses) {
+    await tx.medicationDispense.create({
+      data: {
+        patientId,
+        status: md.status,
+        medicationCode: md.medicationCode,
+        whenHandedOver: parseDate(md.whenHandedOver),
+        quantityText: md.quantityText,
+        daysSupply: md.daysSupply,
+        encounterId: encounterIdAt(md.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const ms of medicationStatements) {
+    await tx.medicationStatement.create({
+      data: {
+        patientId,
+        status: ms.status,
+        medicationCode: ms.medicationCode,
+        effectiveDateTime: parseDate(ms.effectiveDateTime),
+        dosageText: ms.dosageText,
+        encounterId: encounterIdAt(ms.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const med of medications) {
+    await tx.medication.create({
+      data: {
+        patientId,
+        code: med.code,
+        status: med.status,
+        form: med.form,
+        strength: med.strength,
+        encounterId: encounterIdAt(med.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const im of immunizations) {
+    await tx.immunization.create({
+      data: {
+        patientId,
+        status: im.status,
+        vaccineCode: im.vaccineCode,
+        occurrenceDateTime: parseDate(im.occurrenceDateTime),
+        lotNumber: im.lotNumber,
+        manufacturerText: im.manufacturerText,
+        encounterId: encounterIdAt(im.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  return tx.patient.findUnique({
+    where: { id: patientId },
+    include: patientIncludeAll,
+  });
+}
+
 export function registerPatientRoutes(app: Express): void {
   app.get("/api/patients", async (req: Request, res: Response) => {
     const q = collectPatientQuery(req);
@@ -358,33 +648,10 @@ export function registerPatientRoutes(app: Express): void {
       res.status(400).json({ error: parsed.error.flatten() });
       return;
     }
-    const {
-      patient,
-      practitioners,
-      labs,
-      observations,
-      conditions,
-      diagnosticReports,
-      procedures,
-      allergyIntolerances,
-      encounters,
-      coverages,
-      medicationRequests,
-      medicationAdministrations,
-      medicationDispenses,
-      medicationStatements,
-      medications,
-      immunizations,
-    } = parsed.data;
+    const { patient } = parsed.data;
 
     try {
       const result = await prisma.$transaction(async (tx) => {
-        function encounterIdAt(index: number | undefined, encounterIds: string[]): string | undefined {
-          if (index == null) return undefined;
-          if (index < 0 || index >= encounterIds.length) return undefined;
-          return encounterIds[index]!;
-        }
-
         const pat = await tx.patient.create({
           data: {
             family: patient.family,
@@ -403,250 +670,64 @@ export function registerPatientRoutes(app: Express): void {
             identifierValue: patient.identifierValue,
           },
         });
-
-        const practitionerIds: string[] = [];
-        for (const pr of practitioners) {
-          const row = await tx.practitioner.create({
-            data: {
-              patientId: pat.id,
-              family: pr.family,
-              given: JSON.stringify(pr.given),
-              phone: pr.phone,
-              email: pr.email,
-              identifierSystem: pr.identifierSystem,
-              identifierValue: pr.identifierValue,
-              specialty: pr.specialty,
-            },
-          });
-          practitionerIds.push(row.id);
-        }
-
-        const encounterIds: string[] = [];
-        for (const enc of encounters) {
-          const idx = enc.practitionerIndex;
-          const practitionerId =
-            idx != null && idx >= 0 && idx < practitionerIds.length ? practitionerIds[idx]! : undefined;
-          const row = await tx.encounter.create({
-            data: {
-              patientId: pat.id,
-              practitionerId,
-              status: enc.status,
-              classCode: enc.classCode,
-              typeText: enc.typeText,
-              periodStart: parseDate(enc.periodStart),
-              periodEnd: parseDate(enc.periodEnd),
-            },
-          });
-          encounterIds.push(row.id);
-        }
-
-        for (let i = 0; i < practitioners.length; i++) {
-          const pr = practitioners[i]!;
-          const eid = encounterIdAt(pr.encounterIndex, encounterIds);
-          if (eid) {
-            await tx.practitioner.update({
-              where: { id: practitionerIds[i]! },
-              data: { contextEncounterId: eid },
-            });
-          }
-        }
-
-        for (const lab of labs) {
-          await tx.observation.create({
-            data: {
-              patientId: pat.id,
-              category: "laboratory",
-              code: lab.code,
-              valueString: lab.valueString,
-              valueQuantity: lab.valueQuantity,
-              valueQuantityUnit: lab.valueQuantityUnit,
-              effectiveDateTime: parseDate(lab.effectiveDateTime),
-              encounterId: encounterIdAt(lab.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const obs of observations) {
-          await tx.observation.create({
-            data: {
-              patientId: pat.id,
-              category: obs.category || "survey",
-              code: obs.code,
-              valueString: obs.valueString,
-              valueQuantity: obs.valueQuantity,
-              valueQuantityUnit: obs.valueQuantityUnit,
-              effectiveDateTime: parseDate(obs.effectiveDateTime),
-              encounterId: encounterIdAt(obs.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const c of conditions) {
-          await tx.condition.create({
-            data: {
-              patientId: pat.id,
-              clinicalStatus: c.clinicalStatus,
-              verificationStatus: c.verificationStatus,
-              code: c.code,
-              onsetDateTime: parseDate(c.onsetDateTime),
-              recordedDate: parseDate(c.recordedDate) ?? new Date(),
-              encounterId: encounterIdAt(c.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const dr of diagnosticReports) {
-          await tx.diagnosticReport.create({
-            data: {
-              patientId: pat.id,
-              status: dr.status ?? "final",
-              code: dr.code,
-              conclusion: dr.conclusion,
-              effectiveDateTime: parseDate(dr.effectiveDateTime),
-              issued: parseDate(dr.issued),
-              encounterId: encounterIdAt(dr.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const proc of procedures) {
-          await tx.procedure.create({
-            data: {
-              patientId: pat.id,
-              status: proc.status,
-              code: proc.code,
-              performedDateTime: parseDate(proc.performedDateTime),
-              bodySite: proc.bodySite,
-              encounterId: encounterIdAt(proc.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const a of allergyIntolerances) {
-          await tx.allergyIntolerance.create({
-            data: {
-              patientId: pat.id,
-              clinicalStatus: a.clinicalStatus,
-              verificationStatus: a.verificationStatus,
-              type: a.type,
-              category: a.category,
-              code: a.code,
-              reaction: a.reaction,
-              onsetDateTime: parseDate(a.onsetDateTime),
-              encounterId: encounterIdAt(a.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const cov of coverages) {
-          await tx.coverage.create({
-            data: {
-              patientId: pat.id,
-              status: cov.status,
-              insurerName: cov.insurerName,
-              planName: cov.planName,
-              subscriberId: cov.subscriberId,
-              memberId: cov.memberId,
-              relationshipText: cov.relationshipText,
-              periodStart: parseDate(cov.periodStart),
-              periodEnd: parseDate(cov.periodEnd),
-            },
-          });
-        }
-
-        for (const mr of medicationRequests) {
-          await tx.medicationRequest.create({
-            data: {
-              patientId: pat.id,
-              status: mr.status,
-              intent: mr.intent,
-              medicationCode: mr.medicationCode,
-              dosageText: mr.dosageText,
-              authoredOn: parseDate(mr.authoredOn),
-              requesterText: mr.requesterText,
-              encounterId: encounterIdAt(mr.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const ma of medicationAdministrations) {
-          await tx.medicationAdministration.create({
-            data: {
-              patientId: pat.id,
-              status: ma.status,
-              medicationCode: ma.medicationCode,
-              effectiveDateTime: parseDate(ma.effectiveDateTime),
-              doseText: ma.doseText,
-              routeText: ma.routeText,
-              encounterId: encounterIdAt(ma.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const md of medicationDispenses) {
-          await tx.medicationDispense.create({
-            data: {
-              patientId: pat.id,
-              status: md.status,
-              medicationCode: md.medicationCode,
-              whenHandedOver: parseDate(md.whenHandedOver),
-              quantityText: md.quantityText,
-              daysSupply: md.daysSupply,
-              encounterId: encounterIdAt(md.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const ms of medicationStatements) {
-          await tx.medicationStatement.create({
-            data: {
-              patientId: pat.id,
-              status: ms.status,
-              medicationCode: ms.medicationCode,
-              effectiveDateTime: parseDate(ms.effectiveDateTime),
-              dosageText: ms.dosageText,
-              encounterId: encounterIdAt(ms.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const med of medications) {
-          await tx.medication.create({
-            data: {
-              patientId: pat.id,
-              code: med.code,
-              status: med.status,
-              form: med.form,
-              strength: med.strength,
-              encounterId: encounterIdAt(med.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        for (const im of immunizations) {
-          await tx.immunization.create({
-            data: {
-              patientId: pat.id,
-              status: im.status,
-              vaccineCode: im.vaccineCode,
-              occurrenceDateTime: parseDate(im.occurrenceDateTime),
-              lotNumber: im.lotNumber,
-              manufacturerText: im.manufacturerText,
-              encounterId: encounterIdAt(im.encounterIndex, encounterIds),
-            },
-          });
-        }
-
-        return tx.patient.findUnique({
-          where: { id: pat.id },
-          include: patientIncludeAll,
-        });
+        return createPatientClinicalChildren(tx, pat.id, parsed.data);
       });
 
       res.status(201).json(result);
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Ingest failed" });
+    }
+  });
+
+  /** Replace all clinical data for a patient (uploads unchanged). Same JSON body as POST /ingest. */
+  app.put("/api/patients/:id", async (req: Request, res: Response) => {
+    const id = paramString(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "Missing id" });
+      return;
+    }
+    const parsed = ingestBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+    const existing = await prisma.patient.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const { patient } = parsed.data;
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        await deletePatientClinicalChildren(tx, id);
+        await tx.patient.update({
+          where: { id },
+          data: {
+            family: patient.family,
+            given: JSON.stringify(patient.given),
+            gender: patient.gender,
+            birthDate: parseDate(patient.birthDate),
+            active: patient.active ?? true,
+            phone: patient.phone,
+            email: patient.email || undefined,
+            addressLine: patient.addressLine,
+            city: patient.city,
+            state: patient.state,
+            postalCode: patient.postalCode,
+            country: patient.country,
+            identifierSystem: patient.identifierSystem,
+            identifierValue: patient.identifierValue,
+          },
+        });
+        return createPatientClinicalChildren(tx, id, parsed.data);
+      });
+
+      res.json(result);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Update failed" });
     }
   });
 }

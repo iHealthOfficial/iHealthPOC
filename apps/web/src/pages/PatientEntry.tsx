@@ -54,6 +54,9 @@ type EncounterRow = {
   periodEnd: string;
   /** Index in ingest `practitioners` array (only rows with given names), or "" for none */
   practitionerIndex: string;
+  /** Legacy / source-system encounter id (manual; not the internal UUID). */
+  legacyIdentifierSystem: string;
+  legacyIdentifierValue: string;
 };
 
 /** Maps to API Coverage model (patient insurance capture). */
@@ -193,6 +196,8 @@ const emptyEncounter = (): EncounterRow => ({
   periodStart: "",
   periodEnd: "",
   practitionerIndex: "",
+  legacyIdentifierSystem: "",
+  legacyIdentifierValue: "",
 });
 
 const emptyCoverage = (): CoverageRow => ({
@@ -293,6 +298,7 @@ type MedSubTabId = (typeof MED_SUB_TABS)[number]["id"];
 /** Main FHIR resource tabs (chunk 3: UI + state only; chunk 4 wires section visibility). */
 const MAIN_TABS = [
   { id: "patient" as const, label: "Patient" },
+  { id: "updateExisting" as const, label: "Update existing" },
   { id: "practitioner" as const, label: "Practitioner" },
   { id: "observation" as const, label: "Observation" },
   { id: "diagnosticReport" as const, label: "Diagnostic report" },
@@ -326,16 +332,21 @@ function practitionerPayloadOptions(rows: PractitionerRow[]): { index: number; l
 
 const DRAFT_STORAGE_KEY = "ihealth-patient-entry-draft-v1";
 
-function encountersInPayloadOrder(rows: EncounterRow[]): EncounterRow[] {
-  return rows.filter(
-    (en) =>
-      en.status.trim() ||
-      en.classCode.trim() ||
-      en.typeText.trim() ||
-      en.periodStart ||
-      en.periodEnd ||
-      en.practitionerIndex !== "",
+function encounterRowIncludedInPayload(en: EncounterRow): boolean {
+  return (
+    en.status.trim() !== "" ||
+    en.classCode.trim() !== "" ||
+    en.typeText.trim() !== "" ||
+    en.periodStart !== "" ||
+    en.periodEnd !== "" ||
+    en.practitionerIndex !== "" ||
+    en.legacyIdentifierSystem.trim() !== "" ||
+    en.legacyIdentifierValue.trim() !== ""
   );
+}
+
+function encountersInPayloadOrder(rows: EncounterRow[]): EncounterRow[] {
+  return rows.filter(encounterRowIncludedInPayload);
 }
 
 /** Option index matches ingest `encounters[]` order (only rows that will be saved). */
@@ -343,8 +354,14 @@ function encounterPayloadOptions(rows: EncounterRow[]): { index: number; label: 
   return encountersInPayloadOrder(rows).map((row, index) => ({
     index,
     label:
-      [row.typeText.trim(), row.status.trim(), row.classCode.trim()].filter(Boolean).join(" · ") ||
-      `Encounter ${index + 1}`,
+      [
+        row.legacyIdentifierValue.trim() && `Legacy ID: ${row.legacyIdentifierValue.trim()}`,
+        row.typeText.trim(),
+        row.status.trim(),
+        row.classCode.trim(),
+      ]
+        .filter(Boolean)
+        .join(" · ") || `Encounter ${index + 1}`,
   }));
 }
 
@@ -353,6 +370,30 @@ function payloadEncounterIndex(encounterIndex: string): number | undefined {
   const n = Number.parseInt(encounterIndex, 10);
   if (Number.isNaN(n) || n < 0) return undefined;
   return n;
+}
+
+function isoToDatetimeLocal(iso: string | undefined | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const t = d.getTime() - d.getTimezoneOffset() * 60000;
+  return new Date(t).toISOString().slice(0, 16);
+}
+
+function givenArrayToCommaInput(stored: string): string {
+  try {
+    const v = JSON.parse(stored) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").join(", ") : "";
+  } catch {
+    return "";
+  }
+}
+
+function dateOnlyInput(iso: string | undefined | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 }
 
 function EncounterSelect({
@@ -431,13 +472,16 @@ export default function PatientEntry() {
 
   const [activeMainTab, setActiveMainTab] = useState<MainTabId>("patient");
   const [draftMessage, setDraftMessage] = useState<string | null>(null);
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
+  const [loadPatientIdInput, setLoadPatientIdInput] = useState("");
+  const [loadPatientBusy, setLoadPatientBusy] = useState(false);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if (!raw) return;
       const d = JSON.parse(raw) as Record<string, unknown>;
-      if (d.v !== 1) return;
+      if (d.v !== 1 && d.v !== 2) return;
       const mt = d.activeMainTab;
       if (typeof mt === "string" && MAIN_TABS.some((t) => t.id === mt)) {
         setActiveMainTab(mt as MainTabId);
@@ -478,6 +522,10 @@ export default function PatientEntry() {
       if (Array.isArray(d.medicationStatements)) setMedicationStatements(d.medicationStatements as MedicationStatementRow[]);
       if (Array.isArray(d.medicationProducts)) setMedicationProducts(d.medicationProducts as MedicationProductRow[]);
       if (Array.isArray(d.immunizations)) setImmunizations(d.immunizations as ImmunizationRow[]);
+      if (typeof d.editingPatientId === "string" && d.editingPatientId.trim()) {
+        setEditingPatientId(d.editingPatientId.trim());
+      }
+      if (typeof d.loadPatientIdInput === "string") setLoadPatientIdInput(d.loadPatientIdInput);
       setDraftMessage("Restored local draft from this browser.");
       window.setTimeout(() => setDraftMessage(null), 5000);
     } catch {
@@ -488,8 +536,10 @@ export default function PatientEntry() {
   function saveDraft() {
     try {
       const payload = {
-        v: 1 as const,
+        v: 2 as const,
         activeMainTab,
+        editingPatientId,
+        loadPatientIdInput,
         activeMedSubTab,
         family,
         given,
@@ -523,7 +573,9 @@ export default function PatientEntry() {
       };
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
       setError(null);
-      setDraftMessage("Draft saved in this browser. Use Save patient & clinical data on the last tab to send to the server.");
+      setDraftMessage(
+        "Draft saved in this browser. On the last tab, use the save button to create or update the server record.",
+      );
       window.setTimeout(() => setDraftMessage(null), 6000);
     } catch {
       setError("Could not save draft (storage may be full or disabled).");
@@ -534,6 +586,283 @@ export default function PatientEntry() {
     const idx = MAIN_TABS.findIndex((t) => t.id === activeMainTab);
     if (idx >= 0 && idx < MAIN_TABS.length - 1) {
       setActiveMainTab(MAIN_TABS[idx + 1]!.id);
+    }
+  }
+
+  function clearLoadedPatient() {
+    setEditingPatientId(null);
+    setLoadPatientIdInput("");
+    setError(null);
+    setDraftMessage(null);
+  }
+
+  function encPayloadIdx(
+    encIdToPayloadIdx: Map<string, number>,
+    encounterId: unknown,
+  ): string {
+    if (encounterId == null || encounterId === "") return "";
+    const id = String(encounterId);
+    return encIdToPayloadIdx.has(id) ? String(encIdToPayloadIdx.get(id)) : "";
+  }
+
+  async function loadExistingPatient() {
+    const id = loadPatientIdInput.trim();
+    if (!id) {
+      setError("Enter a patient id (UUID from a previous save or the patient list).");
+      return;
+    }
+    setLoadPatientBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const p = (await api(`/api/patients/${encodeURIComponent(id)}`)) as Record<string, unknown>;
+      if (typeof p.id !== "string") {
+        setError("Invalid patient response.");
+        return;
+      }
+
+      const prList = (Array.isArray(p.practitioners) ? p.practitioners : []) as Record<string, unknown>[];
+      prList.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+      const idToPrPayloadIdx = new Map<string, number>();
+      {
+        let pidx = 0;
+        for (const pr of prList) {
+          const g = givenArrayToCommaInput(String(pr.given ?? "[]"))
+            .split(/[,]+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (g.length === 0) continue;
+          idToPrPayloadIdx.set(String(pr.id), pidx);
+          pidx++;
+        }
+      }
+
+      const encList = (Array.isArray(p.encounters) ? p.encounters : []) as Record<string, unknown>[];
+      encList.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+      const encRows: EncounterRow[] = encList.map((e) => {
+        const pid = e.practitionerId != null ? String(e.practitionerId) : "";
+        const pi = pid && idToPrPayloadIdx.has(pid) ? String(idToPrPayloadIdx.get(pid)) : "";
+        return {
+          status: typeof e.status === "string" ? e.status : "",
+          classCode: typeof e.classCode === "string" ? e.classCode : "",
+          typeText: typeof e.typeText === "string" ? e.typeText : "",
+          periodStart: isoToDatetimeLocal(e.periodStart as string | undefined),
+          periodEnd: isoToDatetimeLocal(e.periodEnd as string | undefined),
+          practitionerIndex: pi,
+          legacyIdentifierSystem:
+            typeof e.legacyIdentifierSystem === "string" ? e.legacyIdentifierSystem : "",
+          legacyIdentifierValue:
+            typeof e.legacyIdentifierValue === "string" ? e.legacyIdentifierValue : "",
+        };
+      });
+
+      const encIdToPayloadIdx = new Map<string, number>();
+      {
+        let ei = 0;
+        for (let i = 0; i < encList.length; i++) {
+          const row = encRows[i]!;
+          if (!encounterRowIncludedInPayload(row)) continue;
+          encIdToPayloadIdx.set(String(encList[i]!.id), ei);
+          ei++;
+        }
+      }
+
+      const prRows: PractitionerRow[] = prList.map((pr) => {
+        const ctx = pr.contextEncounterId != null ? String(pr.contextEncounterId) : "";
+        const encIdx = encPayloadIdx(encIdToPayloadIdx, ctx || undefined);
+        return {
+          family: typeof pr.family === "string" ? pr.family : "",
+          given: givenArrayToCommaInput(String(pr.given ?? "[]")),
+          phone: typeof pr.phone === "string" ? pr.phone : "",
+          email: typeof pr.email === "string" ? pr.email : "",
+          identifierSystem: typeof pr.identifierSystem === "string" ? pr.identifierSystem : "",
+          identifierValue: typeof pr.identifierValue === "string" ? pr.identifierValue : "",
+          specialty: typeof pr.specialty === "string" ? pr.specialty : "",
+          encounterIndex: encIdx,
+        };
+      });
+
+      const obsAll = (Array.isArray(p.observations) ? p.observations : []) as Record<string, unknown>[];
+      const labsFromApi = obsAll.filter((o) => o.category === "laboratory");
+      const obsNonLab = obsAll.filter((o) => o.category !== "laboratory");
+
+      setLabs(
+        labsFromApi.length > 0
+          ? labsFromApi.map((o) => ({
+              code: String(o.code ?? ""),
+              valueQuantity: o.valueQuantity != null ? String(o.valueQuantity) : "",
+              valueQuantityUnit: typeof o.valueQuantityUnit === "string" ? o.valueQuantityUnit : "",
+              effectiveDateTime: isoToDatetimeLocal(o.effectiveDateTime as string | undefined),
+              encounterIndex: encPayloadIdx(encIdToPayloadIdx, o.encounterId),
+            }))
+          : [emptyLab()],
+      );
+
+      setObservations(
+        obsNonLab.map((o) => ({
+          category: typeof o.category === "string" ? o.category : "survey",
+          code: String(o.code ?? ""),
+          valueString: typeof o.valueString === "string" ? o.valueString : "",
+          effectiveDateTime: isoToDatetimeLocal(o.effectiveDateTime as string | undefined),
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, o.encounterId),
+        })),
+      );
+
+      setConditions(
+        (Array.isArray(p.conditions) ? p.conditions : []).map((c) => ({
+          code: String(c.code ?? ""),
+          clinicalStatus: typeof c.clinicalStatus === "string" ? c.clinicalStatus : "active",
+          verificationStatus:
+            typeof c.verificationStatus === "string" ? c.verificationStatus : "confirmed",
+          onsetDateTime: isoToDatetimeLocal(c.onsetDateTime as string | undefined),
+          recordedDate: isoToDatetimeLocal(c.recordedDate as string | undefined),
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, c.encounterId),
+        })),
+      );
+
+      setDiagnosticReports(
+        (Array.isArray(p.diagnosticReports) ? p.diagnosticReports : []).map((dr) => ({
+          status: typeof dr.status === "string" ? dr.status : "final",
+          code: String(dr.code ?? ""),
+          conclusion: typeof dr.conclusion === "string" ? dr.conclusion : "",
+          effectiveDateTime: isoToDatetimeLocal(dr.effectiveDateTime as string | undefined),
+          issued: isoToDatetimeLocal(dr.issued as string | undefined),
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, dr.encounterId),
+        })),
+      );
+
+      setProcedures(
+        (Array.isArray(p.procedures) ? p.procedures : []).map((proc) => ({
+          status: typeof proc.status === "string" ? proc.status : "completed",
+          code: String(proc.code ?? ""),
+          performedDateTime: isoToDatetimeLocal(proc.performedDateTime as string | undefined),
+          bodySite: typeof proc.bodySite === "string" ? proc.bodySite : "",
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, proc.encounterId),
+        })),
+      );
+
+      setAllergies(
+        (Array.isArray(p.allergyIntolerances) ? p.allergyIntolerances : []).map((a) => ({
+          clinicalStatus: typeof a.clinicalStatus === "string" ? a.clinicalStatus : "active",
+          verificationStatus:
+            typeof a.verificationStatus === "string" ? a.verificationStatus : "confirmed",
+          type: typeof a.type === "string" ? a.type : "allergy",
+          category: typeof a.category === "string" ? a.category : "medication",
+          code: String(a.code ?? ""),
+          reaction: typeof a.reaction === "string" ? a.reaction : "",
+          onsetDateTime: isoToDatetimeLocal(a.onsetDateTime as string | undefined),
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, a.encounterId),
+        })),
+      );
+
+      setEncounters(encRows);
+      setPractitionerRows(prRows);
+
+      setCoverageRows(
+        (Array.isArray(p.coverages) ? p.coverages : []).map((c) => ({
+          status: typeof c.status === "string" ? c.status : "",
+          insurerName: typeof c.insurerName === "string" ? c.insurerName : "",
+          planName: typeof c.planName === "string" ? c.planName : "",
+          subscriberId: typeof c.subscriberId === "string" ? c.subscriberId : "",
+          memberId: typeof c.memberId === "string" ? c.memberId : "",
+          relationshipText: typeof c.relationshipText === "string" ? c.relationshipText : "",
+          periodStart: isoToDatetimeLocal(c.periodStart as string | undefined),
+          periodEnd: isoToDatetimeLocal(c.periodEnd as string | undefined),
+        })),
+      );
+
+      setMedicationRequests(
+        (Array.isArray(p.medicationRequests) ? p.medicationRequests : []).map((m) => ({
+          status: typeof m.status === "string" ? m.status : "active",
+          intent: typeof m.intent === "string" ? m.intent : "order",
+          medicationCode: String(m.medicationCode ?? ""),
+          dosageText: typeof m.dosageText === "string" ? m.dosageText : "",
+          authoredOn: isoToDatetimeLocal(m.authoredOn as string | undefined),
+          requesterText: typeof m.requesterText === "string" ? m.requesterText : "",
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, m.encounterId),
+        })),
+      );
+
+      setMedicationAdministrations(
+        (Array.isArray(p.medicationAdministrations) ? p.medicationAdministrations : []).map((m) => ({
+          status: typeof m.status === "string" ? m.status : "completed",
+          medicationCode: String(m.medicationCode ?? ""),
+          effectiveDateTime: isoToDatetimeLocal(m.effectiveDateTime as string | undefined),
+          doseText: typeof m.doseText === "string" ? m.doseText : "",
+          routeText: typeof m.routeText === "string" ? m.routeText : "",
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, m.encounterId),
+        })),
+      );
+
+      setMedicationDispenses(
+        (Array.isArray(p.medicationDispenses) ? p.medicationDispenses : []).map((m) => ({
+          status: typeof m.status === "string" ? m.status : "completed",
+          medicationCode: String(m.medicationCode ?? ""),
+          whenHandedOver: isoToDatetimeLocal(m.whenHandedOver as string | undefined),
+          quantityText: typeof m.quantityText === "string" ? m.quantityText : "",
+          daysSupply: m.daysSupply != null ? String(m.daysSupply) : "",
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, m.encounterId),
+        })),
+      );
+
+      setMedicationStatements(
+        (Array.isArray(p.medicationStatements) ? p.medicationStatements : []).map((m) => ({
+          status: typeof m.status === "string" ? m.status : "active",
+          medicationCode: String(m.medicationCode ?? ""),
+          effectiveDateTime: isoToDatetimeLocal(m.effectiveDateTime as string | undefined),
+          dosageText: typeof m.dosageText === "string" ? m.dosageText : "",
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, m.encounterId),
+        })),
+      );
+
+      setMedicationProducts(
+        (Array.isArray(p.medications) ? p.medications : []).map((m) => ({
+          code: String(m.code ?? ""),
+          status: typeof m.status === "string" ? m.status : "active",
+          form: typeof m.form === "string" ? m.form : "",
+          strength: typeof m.strength === "string" ? m.strength : "",
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, m.encounterId),
+        })),
+      );
+
+      setImmunizations(
+        (Array.isArray(p.immunizations) ? p.immunizations : []).map((im) => ({
+          status: typeof im.status === "string" ? im.status : "completed",
+          vaccineCode: String(im.vaccineCode ?? ""),
+          occurrenceDateTime: isoToDatetimeLocal(im.occurrenceDateTime as string | undefined),
+          lotNumber: typeof im.lotNumber === "string" ? im.lotNumber : "",
+          manufacturerText: typeof im.manufacturerText === "string" ? im.manufacturerText : "",
+          encounterIndex: encPayloadIdx(encIdToPayloadIdx, im.encounterId),
+        })),
+      );
+
+      setFamily(typeof p.family === "string" ? p.family : "");
+      setGiven(givenArrayToCommaInput(String(p.given ?? "[]")));
+      setGender(typeof p.gender === "string" ? p.gender : "");
+      setBirthDate(dateOnlyInput(p.birthDate as string | undefined));
+      setPhone(typeof p.phone === "string" ? p.phone : "");
+      setEmail(typeof p.email === "string" ? p.email : "");
+      setAddressLine(typeof p.addressLine === "string" ? p.addressLine : "");
+      setCity(typeof p.city === "string" ? p.city : "");
+      setState(typeof p.state === "string" ? p.state : "");
+      setPostalCode(typeof p.postalCode === "string" ? p.postalCode : "");
+      setPatientActive(p.active === true);
+      setCountry(typeof p.country === "string" && p.country ? p.country : "US");
+      setIdentifierSystem(typeof p.identifierSystem === "string" ? p.identifierSystem : "");
+      setIdentifierValue(typeof p.identifierValue === "string" ? p.identifierValue : "");
+
+      setEditingPatientId(String(p.id));
+      setLoadPatientIdInput(String(p.id));
+      setDraftMessage(
+        `Loaded patient ${String(p.id)}. Edit on any tab, then use the button on Medication & vaccine to update the server.`,
+      );
+      window.setTimeout(() => setDraftMessage(null), 8000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load patient.");
+    } finally {
+      setLoadPatientBusy(false);
     }
   }
 
@@ -656,31 +985,20 @@ export default function PatientEntry() {
           onsetDateTime: a.onsetDateTime ? new Date(a.onsetDateTime).toISOString() : undefined,
           encounterIndex: payloadEncounterIndex(a.encounterIndex),
         })),
-      encounters: encounters
-        .filter(
-          (en) =>
-            en.status.trim() ||
-            en.classCode.trim() ||
-            en.typeText.trim() ||
-            en.periodStart ||
-            en.periodEnd ||
-            en.practitionerIndex !== "",
-        )
-        .map((en) => {
-          const pi =
-            en.practitionerIndex === ""
-              ? undefined
-              : Number.parseInt(en.practitionerIndex, 10);
-          return {
-            status: en.status.trim() || undefined,
-            classCode: en.classCode.trim() || undefined,
-            typeText: en.typeText.trim() || undefined,
-            periodStart: en.periodStart ? new Date(en.periodStart).toISOString() : undefined,
-            periodEnd: en.periodEnd ? new Date(en.periodEnd).toISOString() : undefined,
-            practitionerIndex:
-              pi != null && !Number.isNaN(pi) && pi >= 0 ? pi : undefined,
-          };
-        }),
+      encounters: encounters.filter(encounterRowIncludedInPayload).map((en) => {
+        const pi =
+          en.practitionerIndex === "" ? undefined : Number.parseInt(en.practitionerIndex, 10);
+        return {
+          status: en.status.trim() || undefined,
+          classCode: en.classCode.trim() || undefined,
+          typeText: en.typeText.trim() || undefined,
+          periodStart: en.periodStart ? new Date(en.periodStart).toISOString() : undefined,
+          periodEnd: en.periodEnd ? new Date(en.periodEnd).toISOString() : undefined,
+          practitionerIndex: pi != null && !Number.isNaN(pi) && pi >= 0 ? pi : undefined,
+          legacyIdentifierSystem: en.legacyIdentifierSystem.trim() || undefined,
+          legacyIdentifierValue: en.legacyIdentifierValue.trim() || undefined,
+        };
+      }),
       coverages: coverageRows
         .filter(
           (c) =>
@@ -775,10 +1093,15 @@ export default function PatientEntry() {
     };
 
     try {
-      const saved = await api<{ id: string }>("/api/patients/ingest", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const saved = editingPatientId
+        ? await api<{ id: string }>(`/api/patients/${encodeURIComponent(editingPatientId)}`, {
+            method: "PUT",
+            body: JSON.stringify(body),
+          })
+        : await api<{ id: string }>("/api/patients/ingest", {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
       setResult(saved.id);
       try {
         localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -804,17 +1127,25 @@ export default function PatientEntry() {
         >
       <h1>Manual patient entry</h1>
       <p className="lead">
-        Use the tabs in any order; nothing is required until you finish. <strong>Save as draft</strong> stores your work in
-        this browser (works offline). <strong>Save and next</strong> moves to the next tab. On the last tab,{" "}
-        <strong>Save patient &amp; clinical data</strong> sends everything to the server in one request.
+        Use the tabs in any order; nothing is required until you finish. <strong>Update existing</strong> loads a patient by
+        id so you can edit and replace their clinical data. <strong>Save as draft</strong> stores your work in this browser
+        (works offline). <strong>Save and next</strong> moves to the next tab. On the last tab, save sends one request to the
+        server (create or update if you loaded an existing patient).
       </p>
 
       {error && <div className="msg err">{error}</div>}
       {draftMessage && <div className="msg ok">{draftMessage}</div>}
       {result && (
         <div className="msg ok">
-          Saved patient id <code>{result}</code> — you can paste this id on the Upload
-          page.
+          {editingPatientId ? (
+            <>
+              Updated patient <code>{result}</code>.
+            </>
+          ) : (
+            <>
+              Saved patient id <code>{result}</code> — you can paste this id on the Upload page.
+            </>
+          )}
         </div>
       )}
 
@@ -937,6 +1268,51 @@ export default function PatientEntry() {
           </div>
         </div>
       </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-updateExisting"
+        aria-labelledby="pe-tab-updateExisting"
+        hidden={activeMainTab !== "updateExisting"}
+      >
+        <div className="card">
+          <h2>Update existing patient</h2>
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Enter the patient UUID (from a previous save or the patient list), then load. All tabs will fill with current
+            data; saving on the last tab replaces clinical data on the server (uploaded files for this patient are not
+            removed).
+          </p>
+          {editingPatientId && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              Editing <code>{editingPatientId}</code> —{" "}
+              <button type="button" className="btn btn-ghost" onClick={clearLoadedPatient}>
+                Clear loaded patient
+              </button>
+            </p>
+          )}
+          <div className="field-grid">
+            <div className="field" style={{ gridColumn: "1 / -1" }}>
+              <label>Patient id</label>
+              <input
+                value={loadPatientIdInput}
+                onChange={(e) => setLoadPatientIdInput(e.target.value)}
+                placeholder="e.g. uuid from last save"
+                autoComplete="off"
+              />
+            </div>
+            <div className="field" style={{ gridColumn: "1 / -1" }}>
+              <button
+                type="button"
+                className="btn"
+                disabled={loadPatientBusy}
+                onClick={() => void loadExistingPatient()}
+              >
+                {loadPatientBusy ? "Loading…" : "Load patient"}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div
@@ -1572,8 +1948,10 @@ export default function PatientEntry() {
         <div className="card">
           <h2>Encounter (FHIR Encounter)</h2>
           <p className="lead" style={{ marginBottom: "1rem" }}>
-            Class uses ActCode values (e.g. AMB ambulatory, EMER emergency). Participant links to a practitioner row
-            from this form (same order as saved practitioners — add them on the Practitioner tab first).
+            Class uses ActCode values (e.g. AMB ambulatory, EMER emergency). Participant links to a practitioner row from
+            this form (same order as saved practitioners — add them on the Practitioner tab first). Use{" "}
+            <strong>Legacy encounter identifier</strong> for the business id from a prior system; it is stored and exported
+            to FHIR as <code>Encounter.identifier</code> and is never auto-generated.
           </p>
           {encounters.length === 0 && (
             <p className="lead" style={{ marginBottom: "1rem" }}>
@@ -1630,6 +2008,30 @@ export default function PatientEntry() {
                     setEncounters(encounters.map((r, j) => (j === i ? { ...r, typeText: e.target.value } : r)))
                   }
                   placeholder="Office visit, follow-up…"
+                />
+              </div>
+              <div className="field">
+                <label>Legacy identifier system (optional URI)</label>
+                <input
+                  value={row.legacyIdentifierSystem}
+                  onChange={(e) =>
+                    setEncounters(
+                      encounters.map((r, j) => (j === i ? { ...r, legacyIdentifierSystem: e.target.value } : r)),
+                    )
+                  }
+                  placeholder="urn:oid:… or https://…"
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Legacy encounter identifier value (optional)</label>
+                <input
+                  value={row.legacyIdentifierValue}
+                  onChange={(e) =>
+                    setEncounters(
+                      encounters.map((r, j) => (j === i ? { ...r, legacyIdentifierValue: e.target.value } : r)),
+                    )
+                  }
+                  placeholder="VIS-2019-0042, CSN, etc."
                 />
               </div>
               <div className="field">
@@ -2358,7 +2760,11 @@ export default function PatientEntry() {
         </button>
         {activeMainTab === "medication" ? (
           <button type="submit" className="btn" disabled={busy}>
-            {busy ? "Saving…" : "Save patient & clinical data"}
+            {busy
+              ? "Saving…"
+              : editingPatientId
+                ? "Update patient & clinical data"
+                : "Save patient & clinical data"}
           </button>
         ) : (
           <button type="button" className="btn" onClick={goNextTab}>

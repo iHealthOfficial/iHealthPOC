@@ -223,6 +223,12 @@ export function toFhirEncounter(e: EncounterWithPractitioner): Record<string, un
           },
         ]
       : undefined;
+  const identifier =
+    e.legacyIdentifierSystem && e.legacyIdentifierValue
+      ? [{ system: e.legacyIdentifierSystem, value: e.legacyIdentifierValue }]
+      : e.legacyIdentifierValue
+        ? [{ value: e.legacyIdentifierValue }]
+        : undefined;
   return {
     resourceType: "Encounter",
     id: e.id,
@@ -236,6 +242,7 @@ export function toFhirEncounter(e: EncounterWithPractitioner): Record<string, un
       : undefined,
     type: e.typeText ? [{ text: e.typeText }] : undefined,
     subject: { reference: `Patient/${e.patientId}` },
+    identifier,
     participant,
     period: {
       start: e.periodStart?.toISOString(),

@@ -150,6 +150,10 @@ model Encounter {
   periodStart DateTime?
   periodEnd   DateTime?
 
+  /// External / legacy business identifier from the source system (manual entry; not the internal UUID).
+  legacyIdentifierSystem String?
+  legacyIdentifierValue  String?
+
   practitionersWithContext Practitioner[] @relation("PractitionerContextEncounter")
   observations             Observation[]
   conditions               Condition[]

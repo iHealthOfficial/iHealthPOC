@@ -635,6 +635,18 @@ h1 {
   box-shadow: 0 1px 4px rgba(45, 106, 93, 0.18);
 }
 
+.pe-main-tab.pe-main-tab--updateExisting:not(.pe-main-tab--active):hover {
+  background: rgba(120, 95, 50, 0.14);
+  color: #5c4320;
+  border-color: rgba(120, 95, 50, 0.32);
+}
+.pe-main-tab--active.pe-main-tab--updateExisting {
+  background: rgba(120, 95, 50, 0.18);
+  color: #4a3618;
+  border-color: rgba(120, 95, 50, 0.46);
+  box-shadow: 0 1px 4px rgba(120, 95, 50, 0.2);
+}
+
 .pe-main-tab.pe-main-tab--practitioner:not(.pe-main-tab--active):hover {
   background: rgba(70, 120, 210, 0.14);
   color: #2a4a8a;
