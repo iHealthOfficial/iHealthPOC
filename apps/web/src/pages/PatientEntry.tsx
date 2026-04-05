@@ -156,9 +156,9 @@ export default function PatientEntry() {
         <form onSubmit={submit}>
       <h1>Manual patient entry</h1>
       <p className="lead">
-        Maps to FHIR <strong>Patient</strong>, <strong>Observation</strong> (labs use
-        category <code>laboratory</code> automatically), and <strong>Condition</strong>{" "}
-        (diagnosis).
+        Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit. Currently
+        only <strong>Patient</strong>, <strong>Observation</strong> (labs and other observations), and{" "}
+        <strong>Condition</strong> have fields; other tabs show placeholders until their chunks land.
       </p>
 
       {error && <div className="msg err">{error}</div>}
@@ -182,6 +182,7 @@ export default function PatientEntry() {
               type="button"
               role="tab"
               aria-selected={selected}
+              aria-controls={`pe-panel-${tab.id}`}
               id={`pe-tab-${tab.id}`}
               tabIndex={selected ? 0 : -1}
               className={["pe-main-tab", selected ? "pe-main-tab--active" : ""].filter(Boolean).join(" ")}
@@ -193,6 +194,12 @@ export default function PatientEntry() {
         })}
       </div>
 
+      <div
+        role="tabpanel"
+        id="pe-panel-patient"
+        aria-labelledby="pe-tab-patient"
+        hidden={activeMainTab !== "patient"}
+      >
       <div className="card">
         <h2>Patient (FHIR Patient)</h2>
         <div className="field-grid">
@@ -249,7 +256,14 @@ export default function PatientEntry() {
           </div>
         </div>
       </div>
+      </div>
 
+      <div
+        role="tabpanel"
+        id="pe-panel-observation"
+        aria-labelledby="pe-tab-observation"
+        hidden={activeMainTab !== "observation"}
+      >
       <div className="card">
         <h2>Labs (FHIR Observation · laboratory)</h2>
         {labs.map((row, i) => (
@@ -359,7 +373,14 @@ export default function PatientEntry() {
           Add observation
         </button>
       </div>
+      </div>
 
+      <div
+        role="tabpanel"
+        id="pe-panel-condition"
+        aria-labelledby="pe-tab-condition"
+        hidden={activeMainTab !== "condition"}
+      >
       <div className="card">
         <h2>Diagnosis (FHIR Condition)</h2>
         {conditions.length === 0 && (
@@ -412,6 +433,106 @@ export default function PatientEntry() {
         <button type="button" className="btn btn-ghost" onClick={() => setConditions([...conditions, emptyCond()])}>
           Add diagnosis
         </button>
+      </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-practitioner"
+        aria-labelledby="pe-tab-practitioner"
+        hidden={activeMainTab !== "practitioner"}
+      >
+        <div className="card">
+          <h2>Practitioner (FHIR Practitioner)</h2>
+          <p className="lead" style={{ marginBottom: 0 }}>
+            Fields for practitioner demographics and identifiers will be added in the next chunk.
+          </p>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-diagnosticReport"
+        aria-labelledby="pe-tab-diagnosticReport"
+        hidden={activeMainTab !== "diagnosticReport"}
+      >
+        <div className="card">
+          <h2>Diagnostic report (FHIR DiagnosticReport)</h2>
+          <p className="lead" style={{ marginBottom: 0 }}>
+            Report-level fields (and links to lab observations) will be added in a later chunk.
+          </p>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-procedure"
+        aria-labelledby="pe-tab-procedure"
+        hidden={activeMainTab !== "procedure"}
+      >
+        <div className="card">
+          <h2>Procedure (FHIR Procedure)</h2>
+          <p className="lead" style={{ marginBottom: 0 }}>
+            Procedure rows will be added in a later chunk.
+          </p>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-allergy"
+        aria-labelledby="pe-tab-allergy"
+        hidden={activeMainTab !== "allergy"}
+      >
+        <div className="card">
+          <h2>Allergy intolerance (FHIR AllergyIntolerance)</h2>
+          <p className="lead" style={{ marginBottom: 0 }}>
+            Allergy and intolerance rows will be added in a later chunk.
+          </p>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-encounter"
+        aria-labelledby="pe-tab-encounter"
+        hidden={activeMainTab !== "encounter"}
+      >
+        <div className="card">
+          <h2>Encounter (FHIR Encounter)</h2>
+          <p className="lead" style={{ marginBottom: 0 }}>
+            Visit or encounter rows will be added in a later chunk.
+          </p>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-insurance"
+        aria-labelledby="pe-tab-insurance"
+        hidden={activeMainTab !== "insurance"}
+      >
+        <div className="card">
+          <h2>Insurance (FHIR Coverage)</h2>
+          <p className="lead" style={{ marginBottom: 0 }}>
+            Coverage and plan fields will be added in a later chunk (aligned to patient insurance capture).
+          </p>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-medication"
+        aria-labelledby="pe-tab-medication"
+        hidden={activeMainTab !== "medication"}
+      >
+        <div className="card">
+          <h2>Medication &amp; vaccine (FHIR medication resources)</h2>
+          <p className="lead" style={{ marginBottom: 0 }}>
+            Sub-tabs for MedicationRequest, administration, dispense, statement, Medication, and Immunization will be
+            added in later chunks.
+          </p>
+        </div>
       </div>
 
       <button type="submit" className="btn" disabled={busy}>
