@@ -18,6 +18,9 @@ export default function Home() {
         <Link to="/upload" className="btn">
           Upload a file
         </Link>{" "}
+        <Link to="/patients" className="btn btn-ghost">
+          Patient directory
+        </Link>{" "}
         <Link to="/patient" className="btn btn-ghost">
           Enter patient data
         </Link>
