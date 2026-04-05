@@ -35,6 +35,221 @@ model Patient {
   observations Observation[]
   conditions   Condition[]
   uploads      UploadArtifact[]
+
+  practitioners              Practitioner[]
+  diagnosticReports        DiagnosticReport[]
+  procedures                 Procedure[]
+  allergyIntolerances      AllergyIntolerance[]
+  encounters               Encounter[]
+  coverages                Coverage[]
+  medicationRequests       MedicationRequest[]
+  medicationAdministrations MedicationAdministration[]
+  medicationDispenses      MedicationDispense[]
+  medicationStatements     MedicationStatement[]
+  medications              Medication[]
+  immunizations            Immunization[]
+}
+
+/// FHIR: Practitioner (captured in context of this patient for export)
+model Practitioner {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  family     String?
+  given      String // JSON array
+  phone      String?
+  email      String?
+  identifierSystem String?
+  identifierValue  String?
+  specialty        String?
+
+  encounters Encounter[]
+}
+
+/// FHIR: DiagnosticReport (report-level metadata; lab values remain Observation laboratory)
+model DiagnosticReport {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status              String   @default("final")
+  code                String
+  conclusion          String?
+  effectiveDateTime   DateTime?
+  issued              DateTime?
+}
+
+/// FHIR: Procedure
+model Procedure {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status              String?
+  code                String
+  performedDateTime   DateTime?
+  bodySite            String?
+}
+
+/// FHIR: AllergyIntolerance
+model AllergyIntolerance {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  clinicalStatus      String?
+  verificationStatus  String?
+  type                String?
+  category            String?
+  code                String
+  reaction            String?
+  onsetDateTime       DateTime?
+}
+
+/// FHIR: Encounter
+model Encounter {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  practitionerId String?
+  practitioner   Practitioner? @relation(fields: [practitionerId], references: [id], onDelete: SetNull)
+
+  status      String?
+  classCode   String?
+  typeText    String?
+  periodStart DateTime?
+  periodEnd   DateTime?
+}
+
+/// FHIR: Coverage (manual “Insurance” entry; aligns to coverage use-case vs InsurancePlan)
+model Coverage {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status            String?
+  insurerName       String?
+  planName          String?
+  subscriberId      String?
+  memberId          String?
+  relationshipText  String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+}
+
+/// FHIR: MedicationRequest
+model MedicationRequest {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status         String?
+  intent         String?
+  medicationCode String
+  dosageText     String?
+  authoredOn     DateTime?
+  requesterText  String?
+}
+
+/// FHIR: MedicationAdministration
+model MedicationAdministration {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status              String?
+  medicationCode      String
+  effectiveDateTime   DateTime?
+  doseText            String?
+  routeText           String?
+}
+
+/// FHIR: MedicationDispense
+model MedicationDispense {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status           String?
+  medicationCode   String
+  whenHandedOver   DateTime?
+  quantityText     String?
+  daysSupply       Int?
+}
+
+/// FHIR: MedicationStatement
+model MedicationStatement {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status           String?
+  medicationCode   String
+  effectiveDateTime DateTime?
+  dosageText       String?
+}
+
+/// FHIR: Medication (product / catalog-style row for this patient context)
+model Medication {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  code     String
+  status   String?
+  form     String?
+  strength String?
+}
+
+/// FHIR: Immunization
+model Immunization {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  status               String?
+  vaccineCode          String
+  occurrenceDateTime   DateTime?
+  lotNumber            String?
+  manufacturerText     String?
 }
 
 /// FHIR: Observation — use `category` = "laboratory" for labs, else vital-signs, exam, etc.

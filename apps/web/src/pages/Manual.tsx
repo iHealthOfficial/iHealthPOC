@@ -55,7 +55,7 @@ export default function Manual() {
   if (err && !manifest) {
     return (
       <>
-        <h1>Manual</h1>
+        <h1>About the Platform</h1>
         <div className="msg err">{err}</div>
       </>
     );
@@ -64,7 +64,7 @@ export default function Manual() {
   if (!manifest) {
     return (
       <>
-        <h1>Manual</h1>
+        <h1>About the Platform</h1>
         <p className="lead">Loading…</p>
       </>
     );

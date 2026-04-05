@@ -82,6 +82,7 @@ const patientCore = z.object({
   given: z.array(z.string()).min(1, "At least one given name"),
   gender: z.string().optional(),
   birthDate: z.string().optional(),
+  active: z.boolean().optional(),
   phone: z.string().optional(),
   email: z
     .union([z.string().email(), z.literal("")])
@@ -96,9 +97,123 @@ const patientCore = z.object({
   identifierValue: z.string().optional(),
 });
 
+const practitionerIn = z.object({
+  family: z.string().optional(),
+  given: z.array(z.string()).min(1),
+  phone: z.string().optional(),
+  email: z
+    .union([z.string().email(), z.literal("")])
+    .optional()
+    .transform((v) => (v === "" ? undefined : v)),
+  identifierSystem: z.string().optional(),
+  identifierValue: z.string().optional(),
+  specialty: z.string().optional(),
+});
+
+const diagnosticReportIn = z.object({
+  status: z.string().optional(),
+  code: z.string().min(1),
+  conclusion: z.string().optional(),
+  effectiveDateTime: z.string().optional(),
+  issued: z.string().optional(),
+});
+
+const procedureIn = z.object({
+  status: z.string().optional(),
+  code: z.string().min(1),
+  performedDateTime: z.string().optional(),
+  bodySite: z.string().optional(),
+});
+
+const allergyIntoleranceIn = z.object({
+  clinicalStatus: z.string().optional(),
+  verificationStatus: z.string().optional(),
+  type: z.string().optional(),
+  category: z.string().optional(),
+  code: z.string().min(1),
+  reaction: z.string().optional(),
+  onsetDateTime: z.string().optional(),
+});
+
+const encounterIn = z.object({
+  status: z.string().optional(),
+  classCode: z.string().optional(),
+  typeText: z.string().optional(),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+  practitionerIndex: z.number().int().nonnegative().nullable().optional(),
+});
+
+const coverageIn = z.object({
+  status: z.string().optional(),
+  insurerName: z.string().optional(),
+  planName: z.string().optional(),
+  subscriberId: z.string().optional(),
+  memberId: z.string().optional(),
+  relationshipText: z.string().optional(),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+});
+
+const medicationRequestIn = z.object({
+  status: z.string().optional(),
+  intent: z.string().optional(),
+  medicationCode: z.string().min(1),
+  dosageText: z.string().optional(),
+  authoredOn: z.string().optional(),
+  requesterText: z.string().optional(),
+});
+
+const medicationAdministrationIn = z.object({
+  status: z.string().optional(),
+  medicationCode: z.string().min(1),
+  effectiveDateTime: z.string().optional(),
+  doseText: z.string().optional(),
+  routeText: z.string().optional(),
+});
+
+const medicationDispenseIn = z.object({
+  status: z.string().optional(),
+  medicationCode: z.string().min(1),
+  whenHandedOver: z.string().optional(),
+  quantityText: z.string().optional(),
+  daysSupply: z.number().int().optional(),
+});
+
+const medicationStatementIn = z.object({
+  status: z.string().optional(),
+  medicationCode: z.string().min(1),
+  effectiveDateTime: z.string().optional(),
+  dosageText: z.string().optional(),
+});
+
+const medicationProductIn = z.object({
+  code: z.string().min(1),
+  status: z.string().optional(),
+  form: z.string().optional(),
+  strength: z.string().optional(),
+});
+
+const immunizationIn = z.object({
+  status: z.string().optional(),
+  vaccineCode: z.string().min(1),
+  occurrenceDateTime: z.string().optional(),
+  lotNumber: z.string().optional(),
+  manufacturerText: z.string().optional(),
+});
+
 const observationIn = z.object({
   category: z.string(),
   code: z.string(),
+  valueString: z.string().optional(),
+  valueQuantity: z.number().optional(),
+  valueQuantityUnit: z.string().optional(),
+  effectiveDateTime: z.string().optional(),
+});
+
+/** Labs payload omits category — always stored as `laboratory` Observation. */
+const labObservationIn = z.object({
+  code: z.string().min(1),
   valueString: z.string().optional(),
   valueQuantity: z.number().optional(),
   valueQuantityUnit: z.string().optional(),
@@ -115,9 +230,21 @@ const conditionIn = z.object({
 
 const ingestBody = z.object({
   patient: patientCore,
-  labs: z.array(observationIn).optional().default([]),
+  practitioners: z.array(practitionerIn).optional().default([]),
+  labs: z.array(labObservationIn).optional().default([]),
   observations: z.array(observationIn).optional().default([]),
   conditions: z.array(conditionIn).optional().default([]),
+  diagnosticReports: z.array(diagnosticReportIn).optional().default([]),
+  procedures: z.array(procedureIn).optional().default([]),
+  allergyIntolerances: z.array(allergyIntoleranceIn).optional().default([]),
+  encounters: z.array(encounterIn).optional().default([]),
+  coverages: z.array(coverageIn).optional().default([]),
+  medicationRequests: z.array(medicationRequestIn).optional().default([]),
+  medicationAdministrations: z.array(medicationAdministrationIn).optional().default([]),
+  medicationDispenses: z.array(medicationDispenseIn).optional().default([]),
+  medicationStatements: z.array(medicationStatementIn).optional().default([]),
+  medications: z.array(medicationProductIn).optional().default([]),
+  immunizations: z.array(immunizationIn).optional().default([]),
 });
 
 function parseDate(s: string | undefined): Date | undefined {
@@ -125,6 +252,24 @@ function parseDate(s: string | undefined): Date | undefined {
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
+
+const patientIncludeAll = {
+  observations: true,
+  conditions: true,
+  uploads: true,
+  practitioners: true,
+  diagnosticReports: true,
+  procedures: true,
+  allergyIntolerances: true,
+  encounters: { include: { practitioner: true } },
+  coverages: true,
+  medicationRequests: true,
+  medicationAdministrations: true,
+  medicationDispenses: true,
+  medicationStatements: true,
+  medications: true,
+  immunizations: true,
+} as const;
 
 export function registerPatientRoutes(app: Express): void {
   app.get("/api/patients", async (req: Request, res: Response) => {
@@ -165,7 +310,7 @@ export function registerPatientRoutes(app: Express): void {
     }
     const p = await prisma.patient.findUnique({
       where: { id },
-      include: { observations: true, conditions: true, uploads: true },
+      include: patientIncludeAll,
     });
     if (!p) {
       res.status(404).json({ error: "Not found" });
@@ -182,7 +327,7 @@ export function registerPatientRoutes(app: Express): void {
     }
     const p = await prisma.patient.findUnique({
       where: { id },
-      include: { observations: true, conditions: true, uploads: true },
+      include: patientIncludeAll,
     });
     if (!p) {
       res.status(404).json({ error: "Not found" });
@@ -197,7 +342,24 @@ export function registerPatientRoutes(app: Express): void {
       res.status(400).json({ error: parsed.error.flatten() });
       return;
     }
-    const { patient, labs, observations, conditions } = parsed.data;
+    const {
+      patient,
+      practitioners,
+      labs,
+      observations,
+      conditions,
+      diagnosticReports,
+      procedures,
+      allergyIntolerances,
+      encounters,
+      coverages,
+      medicationRequests,
+      medicationAdministrations,
+      medicationDispenses,
+      medicationStatements,
+      medications,
+      immunizations,
+    } = parsed.data;
 
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -207,6 +369,7 @@ export function registerPatientRoutes(app: Express): void {
             given: JSON.stringify(patient.given),
             gender: patient.gender,
             birthDate: parseDate(patient.birthDate),
+            active: patient.active ?? true,
             phone: patient.phone,
             email: patient.email || undefined,
             addressLine: patient.addressLine,
@@ -218,6 +381,23 @@ export function registerPatientRoutes(app: Express): void {
             identifierValue: patient.identifierValue,
           },
         });
+
+        const practitionerIds: string[] = [];
+        for (const pr of practitioners) {
+          const row = await tx.practitioner.create({
+            data: {
+              patientId: pat.id,
+              family: pr.family,
+              given: JSON.stringify(pr.given),
+              phone: pr.phone,
+              email: pr.email,
+              identifierSystem: pr.identifierSystem,
+              identifierValue: pr.identifierValue,
+              specialty: pr.specialty,
+            },
+          });
+          practitionerIds.push(row.id);
+        }
 
         for (const lab of labs) {
           await tx.observation.create({
@@ -260,9 +440,159 @@ export function registerPatientRoutes(app: Express): void {
           });
         }
 
+        for (const dr of diagnosticReports) {
+          await tx.diagnosticReport.create({
+            data: {
+              patientId: pat.id,
+              status: dr.status ?? "final",
+              code: dr.code,
+              conclusion: dr.conclusion,
+              effectiveDateTime: parseDate(dr.effectiveDateTime),
+              issued: parseDate(dr.issued),
+            },
+          });
+        }
+
+        for (const proc of procedures) {
+          await tx.procedure.create({
+            data: {
+              patientId: pat.id,
+              status: proc.status,
+              code: proc.code,
+              performedDateTime: parseDate(proc.performedDateTime),
+              bodySite: proc.bodySite,
+            },
+          });
+        }
+
+        for (const a of allergyIntolerances) {
+          await tx.allergyIntolerance.create({
+            data: {
+              patientId: pat.id,
+              clinicalStatus: a.clinicalStatus,
+              verificationStatus: a.verificationStatus,
+              type: a.type,
+              category: a.category,
+              code: a.code,
+              reaction: a.reaction,
+              onsetDateTime: parseDate(a.onsetDateTime),
+            },
+          });
+        }
+
+        for (const enc of encounters) {
+          const idx = enc.practitionerIndex;
+          const practitionerId =
+            idx != null && idx >= 0 && idx < practitionerIds.length ? practitionerIds[idx]! : undefined;
+          await tx.encounter.create({
+            data: {
+              patientId: pat.id,
+              practitionerId,
+              status: enc.status,
+              classCode: enc.classCode,
+              typeText: enc.typeText,
+              periodStart: parseDate(enc.periodStart),
+              periodEnd: parseDate(enc.periodEnd),
+            },
+          });
+        }
+
+        for (const cov of coverages) {
+          await tx.coverage.create({
+            data: {
+              patientId: pat.id,
+              status: cov.status,
+              insurerName: cov.insurerName,
+              planName: cov.planName,
+              subscriberId: cov.subscriberId,
+              memberId: cov.memberId,
+              relationshipText: cov.relationshipText,
+              periodStart: parseDate(cov.periodStart),
+              periodEnd: parseDate(cov.periodEnd),
+            },
+          });
+        }
+
+        for (const mr of medicationRequests) {
+          await tx.medicationRequest.create({
+            data: {
+              patientId: pat.id,
+              status: mr.status,
+              intent: mr.intent,
+              medicationCode: mr.medicationCode,
+              dosageText: mr.dosageText,
+              authoredOn: parseDate(mr.authoredOn),
+              requesterText: mr.requesterText,
+            },
+          });
+        }
+
+        for (const ma of medicationAdministrations) {
+          await tx.medicationAdministration.create({
+            data: {
+              patientId: pat.id,
+              status: ma.status,
+              medicationCode: ma.medicationCode,
+              effectiveDateTime: parseDate(ma.effectiveDateTime),
+              doseText: ma.doseText,
+              routeText: ma.routeText,
+            },
+          });
+        }
+
+        for (const md of medicationDispenses) {
+          await tx.medicationDispense.create({
+            data: {
+              patientId: pat.id,
+              status: md.status,
+              medicationCode: md.medicationCode,
+              whenHandedOver: parseDate(md.whenHandedOver),
+              quantityText: md.quantityText,
+              daysSupply: md.daysSupply,
+            },
+          });
+        }
+
+        for (const ms of medicationStatements) {
+          await tx.medicationStatement.create({
+            data: {
+              patientId: pat.id,
+              status: ms.status,
+              medicationCode: ms.medicationCode,
+              effectiveDateTime: parseDate(ms.effectiveDateTime),
+              dosageText: ms.dosageText,
+            },
+          });
+        }
+
+        for (const med of medications) {
+          await tx.medication.create({
+            data: {
+              patientId: pat.id,
+              code: med.code,
+              status: med.status,
+              form: med.form,
+              strength: med.strength,
+            },
+          });
+        }
+
+        for (const im of immunizations) {
+          await tx.immunization.create({
+            data: {
+              patientId: pat.id,
+              status: im.status,
+              vaccineCode: im.vaccineCode,
+              occurrenceDateTime: parseDate(im.occurrenceDateTime),
+              lotNumber: im.lotNumber,
+              manufacturerText: im.manufacturerText,
+            },
+          });
+        }
+
         return tx.patient.findUnique({
           where: { id: pat.id },
-          include: { observations: true, conditions: true },
+          include: patientIncludeAll,
         });
       });
 
