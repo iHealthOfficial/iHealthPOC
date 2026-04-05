@@ -30,6 +30,26 @@ type ProcedureRow = {
   bodySite: string;
 };
 
+type AllergyRow = {
+  clinicalStatus: string;
+  verificationStatus: string;
+  type: string;
+  category: string;
+  code: string;
+  reaction: string;
+  onsetDateTime: string;
+};
+
+type EncounterRow = {
+  status: string;
+  classCode: string;
+  typeText: string;
+  periodStart: string;
+  periodEnd: string;
+  /** Index in ingest `practitioners` array (only rows with given names), or "" for none */
+  practitionerIndex: string;
+};
+
 type PractitionerRow = {
   family: string;
   given: string;
@@ -78,6 +98,25 @@ const emptyProcedure = (): ProcedureRow => ({
   bodySite: "",
 });
 
+const emptyAllergy = (): AllergyRow => ({
+  clinicalStatus: "active",
+  verificationStatus: "confirmed",
+  type: "allergy",
+  category: "medication",
+  code: "",
+  reaction: "",
+  onsetDateTime: "",
+});
+
+const emptyEncounter = (): EncounterRow => ({
+  status: "",
+  classCode: "",
+  typeText: "",
+  periodStart: "",
+  periodEnd: "",
+  practitionerIndex: "",
+});
+
 const emptyPractitioner = (): PractitionerRow => ({
   family: "",
   given: "",
@@ -112,6 +151,24 @@ const MAIN_TABS = [
 
 type MainTabId = (typeof MAIN_TABS)[number]["id"];
 
+/** Indices match the order of practitioners sent to ingest (rows without given names are skipped). */
+function practitionerPayloadOptions(rows: PractitionerRow[]): { index: number; label: string }[] {
+  const options: { index: number; label: string }[] = [];
+  let idx = 0;
+  for (const row of rows) {
+    const g = row.given
+      .split(/[,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (g.length === 0) continue;
+    const label =
+      [row.family.trim(), g.join(" ")].filter(Boolean).join(", ") || `Practitioner ${idx + 1}`;
+    options.push({ index: idx, label });
+    idx++;
+  }
+  return options;
+}
+
 export default function PatientEntry() {
   const [family, setFamily] = useState("");
   const [given, setGiven] = useState("");
@@ -135,6 +192,8 @@ export default function PatientEntry() {
   const [observations, setObservations] = useState<ObsRow[]>([]);
   const [conditions, setConditions] = useState<CondRow[]>([]);
   const [procedures, setProcedures] = useState<ProcedureRow[]>([]);
+  const [allergies, setAllergies] = useState<AllergyRow[]>([]);
+  const [encounters, setEncounters] = useState<EncounterRow[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -244,6 +303,42 @@ export default function PatientEntry() {
             : undefined,
           bodySite: p.bodySite.trim() || undefined,
         })),
+      allergyIntolerances: allergies
+        .filter((a) => a.code.trim())
+        .map((a) => ({
+          clinicalStatus: a.clinicalStatus.trim() || undefined,
+          verificationStatus: a.verificationStatus.trim() || undefined,
+          type: a.type.trim() || undefined,
+          category: a.category.trim() || undefined,
+          code: a.code.trim(),
+          reaction: a.reaction.trim() || undefined,
+          onsetDateTime: a.onsetDateTime ? new Date(a.onsetDateTime).toISOString() : undefined,
+        })),
+      encounters: encounters
+        .filter(
+          (en) =>
+            en.status.trim() ||
+            en.classCode.trim() ||
+            en.typeText.trim() ||
+            en.periodStart ||
+            en.periodEnd ||
+            en.practitionerIndex !== "",
+        )
+        .map((en) => {
+          const pi =
+            en.practitionerIndex === ""
+              ? undefined
+              : Number.parseInt(en.practitionerIndex, 10);
+          return {
+            status: en.status.trim() || undefined,
+            classCode: en.classCode.trim() || undefined,
+            typeText: en.typeText.trim() || undefined,
+            periodStart: en.periodStart ? new Date(en.periodStart).toISOString() : undefined,
+            periodEnd: en.periodEnd ? new Date(en.periodEnd).toISOString() : undefined,
+            practitionerIndex:
+              pi != null && !Number.isNaN(pi) && pi >= 0 ? pi : undefined,
+          };
+        }),
     };
 
     try {
@@ -267,8 +362,9 @@ export default function PatientEntry() {
       <p className="lead">
         Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit.{" "}
         <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong> (non-laboratory),{" "}
-        <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), <strong>Condition</strong>, and{" "}
-        <strong>Procedure</strong> have fields; other tabs are placeholders until their chunks land.
+        <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), <strong>Condition</strong>,{" "}
+        <strong>Procedure</strong>, <strong>Allergy intolerance</strong>, and <strong>Encounter</strong> have fields; other tabs
+        are placeholders until their chunks land.
       </p>
 
       {error && <div className="msg err">{error}</div>}
@@ -881,9 +977,104 @@ export default function PatientEntry() {
       >
         <div className="card">
           <h2>Allergy intolerance (FHIR AllergyIntolerance)</h2>
-          <p className="lead" style={{ marginBottom: 0 }}>
-            Allergy and intolerance rows will be added in a later chunk.
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Substance / code is required to save a row. Use reaction for free-text manifestations or notes.
           </p>
+          {allergies.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No rows yet — use &quot;Add allergy or intolerance&quot; below.
+            </p>
+          )}
+          {allergies.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Substance / code (text)</label>
+                <input
+                  value={row.code}
+                  onChange={(e) =>
+                    setAllergies(allergies.map((r, j) => (j === i ? { ...r, code: e.target.value } : r)))
+                  }
+                  placeholder="Penicillin, latex, code or display…"
+                />
+              </div>
+              <div className="field">
+                <label>Type</label>
+                <select
+                  value={row.type}
+                  onChange={(e) =>
+                    setAllergies(allergies.map((r, j) => (j === i ? { ...r, type: e.target.value } : r)))
+                  }
+                >
+                  <option value="allergy">allergy</option>
+                  <option value="intolerance">intolerance</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Category</label>
+                <select
+                  value={row.category}
+                  onChange={(e) =>
+                    setAllergies(allergies.map((r, j) => (j === i ? { ...r, category: e.target.value } : r)))
+                  }
+                >
+                  <option value="medication">medication</option>
+                  <option value="food">food</option>
+                  <option value="environment">environment</option>
+                  <option value="biologic">biologic</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Clinical status</label>
+                <select
+                  value={row.clinicalStatus}
+                  onChange={(e) =>
+                    setAllergies(allergies.map((r, j) => (j === i ? { ...r, clinicalStatus: e.target.value } : r)))
+                  }
+                >
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                  <option value="resolved">resolved</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Verification status</label>
+                <select
+                  value={row.verificationStatus}
+                  onChange={(e) =>
+                    setAllergies(allergies.map((r, j) => (j === i ? { ...r, verificationStatus: e.target.value } : r)))
+                  }
+                >
+                  <option value="unconfirmed">unconfirmed</option>
+                  <option value="presumed">presumed</option>
+                  <option value="confirmed">confirmed</option>
+                  <option value="refuted">refuted</option>
+                  <option value="entered-in-error">entered-in-error</option>
+                </select>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Reaction (text)</label>
+                <input
+                  value={row.reaction}
+                  onChange={(e) =>
+                    setAllergies(allergies.map((r, j) => (j === i ? { ...r, reaction: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Onset (datetime)</label>
+                <input
+                  type="datetime-local"
+                  value={row.onsetDateTime}
+                  onChange={(e) =>
+                    setAllergies(allergies.map((r, j) => (j === i ? { ...r, onsetDateTime: e.target.value } : r)))
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost" onClick={() => setAllergies([...allergies, emptyAllergy()])}>
+            Add allergy or intolerance
+          </button>
         </div>
       </div>
 
@@ -895,9 +1086,108 @@ export default function PatientEntry() {
       >
         <div className="card">
           <h2>Encounter (FHIR Encounter)</h2>
-          <p className="lead" style={{ marginBottom: 0 }}>
-            Visit or encounter rows will be added in a later chunk.
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Class uses ActCode values (e.g. AMB ambulatory, EMER emergency). Participant links to a practitioner row
+            from this form (same order as saved practitioners — add them on the Practitioner tab first).
           </p>
+          {encounters.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No encounters yet — use &quot;Add encounter&quot; below.
+            </p>
+          )}
+          {encounters.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field">
+                <label>Status</label>
+                <select
+                  value={row.status}
+                  onChange={(e) =>
+                    setEncounters(encounters.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)))
+                  }
+                >
+                  <option value="">—</option>
+                  <option value="planned">planned</option>
+                  <option value="arrived">arrived</option>
+                  <option value="triaged">triaged</option>
+                  <option value="in-progress">in-progress</option>
+                  <option value="onleave">onleave</option>
+                  <option value="finished">finished</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="entered-in-error">entered-in-error</option>
+                  <option value="unknown">unknown</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Class (ActCode)</label>
+                <select
+                  value={row.classCode}
+                  onChange={(e) =>
+                    setEncounters(encounters.map((r, j) => (j === i ? { ...r, classCode: e.target.value } : r)))
+                  }
+                >
+                  <option value="">—</option>
+                  <option value="AMB">AMB — ambulatory</option>
+                  <option value="EMER">EMER — emergency</option>
+                  <option value="IMP">IMP — inpatient</option>
+                  <option value="ACUTE">ACUTE — acute</option>
+                  <option value="NONAC">NONAC — non-acute</option>
+                  <option value="OBSENC">OBSENC — observation</option>
+                  <option value="PRENC">PRENC — pre-admission</option>
+                  <option value="SS">SS — short stay</option>
+                  <option value="VR">VR — virtual</option>
+                </select>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Type (text)</label>
+                <input
+                  value={row.typeText}
+                  onChange={(e) =>
+                    setEncounters(encounters.map((r, j) => (j === i ? { ...r, typeText: e.target.value } : r)))
+                  }
+                  placeholder="Office visit, follow-up…"
+                />
+              </div>
+              <div className="field">
+                <label>Period start</label>
+                <input
+                  type="datetime-local"
+                  value={row.periodStart}
+                  onChange={(e) =>
+                    setEncounters(encounters.map((r, j) => (j === i ? { ...r, periodStart: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Period end</label>
+                <input
+                  type="datetime-local"
+                  value={row.periodEnd}
+                  onChange={(e) =>
+                    setEncounters(encounters.map((r, j) => (j === i ? { ...r, periodEnd: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Participant (practitioner from this entry)</label>
+                <select
+                  value={row.practitionerIndex}
+                  onChange={(e) =>
+                    setEncounters(encounters.map((r, j) => (j === i ? { ...r, practitionerIndex: e.target.value } : r)))
+                  }
+                >
+                  <option value="">— None —</option>
+                  {practitionerPayloadOptions(practitionerRows).map((opt) => (
+                    <option key={opt.index} value={String(opt.index)}>
+                      {opt.label} (index {opt.index})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost" onClick={() => setEncounters([...encounters, emptyEncounter()])}>
+            Add encounter
+          </button>
         </div>
       </div>
 
