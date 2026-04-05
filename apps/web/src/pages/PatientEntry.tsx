@@ -19,6 +19,15 @@ type CondRow = {
   code: string;
   clinicalStatus: string;
   verificationStatus: string;
+  onsetDateTime: string;
+  recordedDate: string;
+};
+
+type ProcedureRow = {
+  status: string;
+  code: string;
+  performedDateTime: string;
+  bodySite: string;
 };
 
 type PractitionerRow = {
@@ -58,6 +67,15 @@ const emptyCond = (): CondRow => ({
   code: "",
   clinicalStatus: "active",
   verificationStatus: "confirmed",
+  onsetDateTime: "",
+  recordedDate: "",
+});
+
+const emptyProcedure = (): ProcedureRow => ({
+  status: "completed",
+  code: "",
+  performedDateTime: "",
+  bodySite: "",
 });
 
 const emptyPractitioner = (): PractitionerRow => ({
@@ -116,6 +134,7 @@ export default function PatientEntry() {
   const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReportRow[]>([]);
   const [observations, setObservations] = useState<ObsRow[]>([]);
   const [conditions, setConditions] = useState<CondRow[]>([]);
+  const [procedures, setProcedures] = useState<ProcedureRow[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -212,6 +231,18 @@ export default function PatientEntry() {
           code: c.code.trim(),
           clinicalStatus: c.clinicalStatus || undefined,
           verificationStatus: c.verificationStatus || undefined,
+          onsetDateTime: c.onsetDateTime ? new Date(c.onsetDateTime).toISOString() : undefined,
+          recordedDate: c.recordedDate ? new Date(c.recordedDate).toISOString() : undefined,
+        })),
+      procedures: procedures
+        .filter((p) => p.code.trim())
+        .map((p) => ({
+          status: p.status.trim() || undefined,
+          code: p.code.trim(),
+          performedDateTime: p.performedDateTime
+            ? new Date(p.performedDateTime).toISOString()
+            : undefined,
+          bodySite: p.bodySite.trim() || undefined,
         })),
     };
 
@@ -236,8 +267,8 @@ export default function PatientEntry() {
       <p className="lead">
         Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit.{" "}
         <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong> (non-laboratory),{" "}
-        <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), and <strong>Condition</strong>{" "}
-        have fields; other tabs are placeholders until their chunks land.
+        <strong>Diagnostic report</strong> (report metadata plus lab results as Observations), <strong>Condition</strong>, and{" "}
+        <strong>Procedure</strong> have fields; other tabs are placeholders until their chunks land.
       </p>
 
       {error && <div className="msg err">{error}</div>}
@@ -444,16 +475,16 @@ export default function PatientEntry() {
         hidden={activeMainTab !== "condition"}
       >
       <div className="card">
-        <h2>Diagnosis (FHIR Condition)</h2>
+        <h2>Condition (FHIR Condition)</h2>
         {conditions.length === 0 && (
           <p className="lead" style={{ marginBottom: "1rem" }}>
-            Add at least one diagnosis row, or leave empty.
+            Add problem or diagnosis rows (each is a Condition), or leave empty. Rows without a code are not saved.
           </p>
         )}
         {conditions.map((row, i) => (
           <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
             <div className="field" style={{ gridColumn: "1 / -1" }}>
-              <label>Code / description (ICD-10 or text)</label>
+              <label>Condition code / description (ICD-10, SNOMED, or text)</label>
               <input
                 value={row.code}
                 onChange={(e) =>
@@ -470,12 +501,14 @@ export default function PatientEntry() {
                 }
               >
                 <option value="active">active</option>
+                <option value="recurrence">recurrence</option>
                 <option value="inactive">inactive</option>
+                <option value="remission">remission</option>
                 <option value="resolved">resolved</option>
               </select>
             </div>
             <div className="field">
-              <label>Verification</label>
+              <label>Verification status</label>
               <select
                 value={row.verificationStatus}
                 onChange={(e) =>
@@ -490,10 +523,30 @@ export default function PatientEntry() {
                 <option value="unconfirmed">unconfirmed</option>
               </select>
             </div>
+            <div className="field">
+              <label>Onset (datetime)</label>
+              <input
+                type="datetime-local"
+                value={row.onsetDateTime}
+                onChange={(e) =>
+                  setConditions(conditions.map((r, j) => (j === i ? { ...r, onsetDateTime: e.target.value } : r)))
+                }
+              />
+            </div>
+            <div className="field">
+              <label>Recorded (datetime)</label>
+              <input
+                type="datetime-local"
+                value={row.recordedDate}
+                onChange={(e) =>
+                  setConditions(conditions.map((r, j) => (j === i ? { ...r, recordedDate: e.target.value } : r)))
+                }
+              />
+            </div>
           </div>
         ))}
         <button type="button" className="btn btn-ghost" onClick={() => setConditions([...conditions, emptyCond()])}>
-          Add diagnosis
+          Add condition
         </button>
       </div>
       </div>
@@ -752,9 +805,71 @@ export default function PatientEntry() {
       >
         <div className="card">
           <h2>Procedure (FHIR Procedure)</h2>
-          <p className="lead" style={{ marginBottom: 0 }}>
-            Procedure rows will be added in a later chunk.
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            One row per procedure. Code / description is required to save the row; performed time and body site are
+            optional.
           </p>
+          {procedures.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No procedures yet — use &quot;Add procedure&quot; below.
+            </p>
+          )}
+          {procedures.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field">
+                <label>Status</label>
+                <select
+                  value={row.status}
+                  onChange={(e) =>
+                    setProcedures(procedures.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)))
+                  }
+                >
+                  <option value="preparation">preparation</option>
+                  <option value="in-progress">in-progress</option>
+                  <option value="not-done">not-done</option>
+                  <option value="on-hold">on-hold</option>
+                  <option value="stopped">stopped</option>
+                  <option value="completed">completed</option>
+                  <option value="entered-in-error">entered-in-error</option>
+                  <option value="unknown">unknown</option>
+                </select>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Procedure code / description</label>
+                <input
+                  value={row.code}
+                  onChange={(e) =>
+                    setProcedures(procedures.map((r, j) => (j === i ? { ...r, code: e.target.value } : r)))
+                  }
+                  placeholder="CPT, SNOMED, or free text"
+                />
+              </div>
+              <div className="field">
+                <label>Performed (datetime)</label>
+                <input
+                  type="datetime-local"
+                  value={row.performedDateTime}
+                  onChange={(e) =>
+                    setProcedures(
+                      procedures.map((r, j) => (j === i ? { ...r, performedDateTime: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Body site (text)</label>
+                <input
+                  value={row.bodySite}
+                  onChange={(e) =>
+                    setProcedures(procedures.map((r, j) => (j === i ? { ...r, bodySite: e.target.value } : r)))
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost" onClick={() => setProcedures([...procedures, emptyProcedure()])}>
+            Add procedure
+          </button>
         </div>
       </div>
 
