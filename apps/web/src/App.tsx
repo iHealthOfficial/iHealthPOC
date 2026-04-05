@@ -14,6 +14,7 @@ function navTabClass(base: string) {
 export default function App() {
   const { pathname } = useLocation();
   const isHome = pathname === "/";
+  const isPatientEntry = pathname === "/patient";
 
   return (
     <div className="app-root">
@@ -47,7 +48,11 @@ export default function App() {
         </div>
       </header>
 
-      <main className={isHome ? "site-main site-main--flush" : "site-main site-main--sheet"}>
+      <main
+        className={
+          isHome || isPatientEntry ? "site-main site-main--flush" : "site-main site-main--sheet"
+        }
+      >
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/upload" element={<Upload />} />

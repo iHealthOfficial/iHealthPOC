@@ -621,6 +621,20 @@ h1 {
   box-shadow: 0 1px 3px rgba(30, 80, 120, 0.08);
 }
 
+.pe-inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pe-inline-check input {
+  width: auto;
+  margin: 0;
+}
+
 .home-section {
   padding: 2.5rem 1.5rem 3rem;
 }

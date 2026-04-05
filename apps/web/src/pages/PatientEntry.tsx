@@ -21,6 +21,16 @@ type CondRow = {
   verificationStatus: string;
 };
 
+type PractitionerRow = {
+  family: string;
+  given: string;
+  phone: string;
+  email: string;
+  identifierSystem: string;
+  identifierValue: string;
+  specialty: string;
+};
+
 const emptyLab = (): LabRow => ({
   code: "",
   valueQuantity: "",
@@ -39,6 +49,16 @@ const emptyCond = (): CondRow => ({
   code: "",
   clinicalStatus: "active",
   verificationStatus: "confirmed",
+});
+
+const emptyPractitioner = (): PractitionerRow => ({
+  family: "",
+  given: "",
+  phone: "",
+  email: "",
+  identifierSystem: "",
+  identifierValue: "",
+  specialty: "",
 });
 
 /** Main FHIR resource tabs (chunk 3: UI + state only; chunk 4 wires section visibility). */
@@ -68,6 +88,12 @@ export default function PatientEntry() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [patientActive, setPatientActive] = useState(true);
+  const [country, setCountry] = useState("US");
+  const [identifierSystem, setIdentifierSystem] = useState("");
+  const [identifierValue, setIdentifierValue] = useState("");
+
+  const [practitionerRows, setPractitionerRows] = useState<PractitionerRow[]>([]);
 
   const [labs, setLabs] = useState<LabRow[]>([emptyLab()]);
   const [observations, setObservations] = useState<ObsRow[]>([]);
@@ -94,23 +120,46 @@ export default function PatientEntry() {
       return;
     }
 
+    const practitionersPayload = practitionerRows
+      .map((row) => {
+        const g = row.given
+          .split(/[,]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (g.length === 0) return null;
+        return {
+          family: row.family.trim() || undefined,
+          given: g,
+          phone: row.phone.trim() || undefined,
+          email: row.email.trim() || undefined,
+          identifierSystem: row.identifierSystem.trim() || undefined,
+          identifierValue: row.identifierValue.trim() || undefined,
+          specialty: row.specialty.trim() || undefined,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null);
+
     const body = {
       patient: {
         family: family || undefined,
         given: givenNames,
         gender: gender || undefined,
         birthDate: birthDate || undefined,
+        active: patientActive,
         phone: phone || undefined,
         email: email || undefined,
         addressLine: addressLine || undefined,
         city: city || undefined,
         state: state || undefined,
         postalCode: postalCode || undefined,
+        country: country.trim() || undefined,
+        identifierSystem: identifierSystem.trim() || undefined,
+        identifierValue: identifierValue.trim() || undefined,
       },
+      practitioners: practitionersPayload,
       labs: labs
         .filter((l) => l.code.trim())
         .map((l) => ({
-          category: "laboratory" as const,
           code: l.code.trim(),
           valueQuantity: l.valueQuantity ? Number(l.valueQuantity) : undefined,
           valueQuantityUnit: l.valueQuantityUnit || undefined,
@@ -156,9 +205,9 @@ export default function PatientEntry() {
         <form onSubmit={submit}>
       <h1>Manual patient entry</h1>
       <p className="lead">
-        Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit. Currently
-        only <strong>Patient</strong>, <strong>Observation</strong> (labs and other observations), and{" "}
-        <strong>Condition</strong> have fields; other tabs show placeholders until their chunks land.
+        Use the tabs to move between FHIR resource areas. All entered data is saved together when you submit.{" "}
+        <strong>Patient</strong>, <strong>Practitioner</strong>, <strong>Observation</strong>, and{" "}
+        <strong>Condition</strong> have fields; other tabs are placeholders until their chunks land.
       </p>
 
       {error && <div className="msg err">{error}</div>}
@@ -203,6 +252,16 @@ export default function PatientEntry() {
       <div className="card">
         <h2>Patient (FHIR Patient)</h2>
         <div className="field-grid">
+          <div className="field" style={{ gridColumn: "1 / -1" }}>
+            <label className="pe-inline-check">
+              <input
+                type="checkbox"
+                checked={patientActive}
+                onChange={(e) => setPatientActive(e.target.checked)}
+              />
+              Active record (Patient.active)
+            </label>
+          </div>
           <div className="field">
             <label>Family name</label>
             <input value={family} onChange={(e) => setFamily(e.target.value)} />
@@ -253,6 +312,27 @@ export default function PatientEntry() {
           <div className="field">
             <label>Postal code</label>
             <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Country</label>
+            <input
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="US"
+              maxLength={8}
+            />
+          </div>
+          <div className="field">
+            <label>Identifier system (URI)</label>
+            <input
+              value={identifierSystem}
+              onChange={(e) => setIdentifierSystem(e.target.value)}
+              placeholder="http://hospital.example.org/mrn"
+            />
+          </div>
+          <div className="field">
+            <label>Identifier value</label>
+            <input value={identifierValue} onChange={(e) => setIdentifierValue(e.target.value)} placeholder="MRN-123" />
           </div>
         </div>
       </div>
@@ -444,9 +524,95 @@ export default function PatientEntry() {
       >
         <div className="card">
           <h2>Practitioner (FHIR Practitioner)</h2>
-          <p className="lead" style={{ marginBottom: 0 }}>
-            Fields for practitioner demographics and identifiers will be added in the next chunk.
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Add one row per practitioner linked to this patient. Given name is required for each row you want saved;
+            empty rows are skipped.
           </p>
+          {practitionerRows.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No practitioners yet — use &quot;Add practitioner&quot; below.
+            </p>
+          )}
+          {practitionerRows.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field">
+                <label>Family name</label>
+                <input
+                  value={row.family}
+                  onChange={(e) =>
+                    setPractitionerRows(practitionerRows.map((r, j) => (j === i ? { ...r, family: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Given names (comma-separated, required to save row)</label>
+                <input
+                  value={row.given}
+                  onChange={(e) =>
+                    setPractitionerRows(practitionerRows.map((r, j) => (j === i ? { ...r, given: e.target.value } : r)))
+                  }
+                  placeholder="Alex, J."
+                />
+              </div>
+              <div className="field">
+                <label>Phone</label>
+                <input
+                  value={row.phone}
+                  onChange={(e) =>
+                    setPractitionerRows(practitionerRows.map((r, j) => (j === i ? { ...r, phone: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={row.email}
+                  onChange={(e) =>
+                    setPractitionerRows(practitionerRows.map((r, j) => (j === i ? { ...r, email: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Identifier system</label>
+                <input
+                  value={row.identifierSystem}
+                  onChange={(e) =>
+                    setPractitionerRows(
+                      practitionerRows.map((r, j) => (j === i ? { ...r, identifierSystem: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Identifier value</label>
+                <input
+                  value={row.identifierValue}
+                  onChange={(e) =>
+                    setPractitionerRows(
+                      practitionerRows.map((r, j) => (j === i ? { ...r, identifierValue: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Specialty / qualification (text)</label>
+                <input
+                  value={row.specialty}
+                  onChange={(e) =>
+                    setPractitionerRows(practitionerRows.map((r, j) => (j === i ? { ...r, specialty: e.target.value } : r)))
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setPractitionerRows([...practitionerRows, emptyPractitioner()])}
+          >
+            Add practitioner
+          </button>
         </div>
       </div>
 

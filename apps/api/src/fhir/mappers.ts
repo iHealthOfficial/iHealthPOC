@@ -1,9 +1,40 @@
-import type { Condition, Observation, Patient, UploadArtifact } from "@prisma/client";
+import type {
+  AllergyIntolerance,
+  Condition,
+  Coverage,
+  DiagnosticReport,
+  Encounter,
+  Immunization,
+  Medication,
+  MedicationAdministration,
+  MedicationDispense,
+  MedicationRequest,
+  MedicationStatement,
+  Observation,
+  Patient,
+  Practitioner,
+  Procedure,
+  UploadArtifact,
+} from "@prisma/client";
 
-type PatientWithRelations = Patient & {
+type EncounterWithPractitioner = Encounter & { practitioner: Practitioner | null };
+
+export type PatientWithRelations = Patient & {
   observations: Observation[];
   conditions: Condition[];
   uploads: UploadArtifact[];
+  practitioners: Practitioner[];
+  diagnosticReports: DiagnosticReport[];
+  procedures: Procedure[];
+  allergyIntolerances: AllergyIntolerance[];
+  encounters: EncounterWithPractitioner[];
+  coverages: Coverage[];
+  medicationRequests: MedicationRequest[];
+  medicationAdministrations: MedicationAdministration[];
+  medicationDispenses: MedicationDispense[];
+  medicationStatements: MedicationStatement[];
+  medications: Medication[];
+  immunizations: Immunization[];
 };
 
 function parseGiven(given: string): string[] {
@@ -58,6 +89,31 @@ export function toFhirPatient(p: Patient): Record<string, unknown> {
   };
 }
 
+export function toFhirPractitioner(pr: Practitioner): Record<string, unknown> {
+  const given = parseGiven(pr.given);
+  const telecom: { system: string; value: string }[] = [];
+  if (pr.phone) telecom.push({ system: "phone", value: pr.phone });
+  if (pr.email) telecom.push({ system: "email", value: pr.email });
+  const identifier =
+    pr.identifierSystem && pr.identifierValue
+      ? [{ system: pr.identifierSystem, value: pr.identifierValue }]
+      : undefined;
+  return {
+    resourceType: "Practitioner",
+    id: pr.id,
+    meta: { lastUpdated: pr.updatedAt.toISOString() },
+    identifier,
+    name:
+      pr.family || given.length
+        ? [{ family: pr.family ?? undefined, given: given.length ? given : undefined }]
+        : undefined,
+    telecom: telecom.length ? telecom : undefined,
+    qualification: pr.specialty
+      ? [{ code: { text: pr.specialty } }]
+      : undefined,
+  };
+}
+
 export function toFhirObservation(o: Observation): Record<string, unknown> {
   const valueQuantity =
     o.valueQuantity != null
@@ -76,6 +132,20 @@ export function toFhirObservation(o: Observation): Record<string, unknown> {
   };
 }
 
+export function toFhirDiagnosticReport(dr: DiagnosticReport): Record<string, unknown> {
+  return {
+    resourceType: "DiagnosticReport",
+    id: dr.id,
+    meta: { lastUpdated: dr.updatedAt.toISOString() },
+    status: dr.status,
+    code: { text: dr.code },
+    subject: { reference: `Patient/${dr.patientId}` },
+    conclusion: dr.conclusion ?? undefined,
+    effectiveDateTime: dr.effectiveDateTime?.toISOString(),
+    issued: dr.issued?.toISOString(),
+  };
+}
+
 export function toFhirCondition(c: Condition): Record<string, unknown> {
   return {
     resourceType: "Condition",
@@ -90,6 +160,181 @@ export function toFhirCondition(c: Condition): Record<string, unknown> {
     subject: { reference: `Patient/${c.patientId}` },
     onsetDateTime: c.onsetDateTime?.toISOString(),
     recordedDate: c.recordedDate?.toISOString(),
+  };
+}
+
+export function toFhirProcedure(proc: Procedure): Record<string, unknown> {
+  return {
+    resourceType: "Procedure",
+    id: proc.id,
+    meta: { lastUpdated: proc.updatedAt.toISOString() },
+    status: proc.status ?? undefined,
+    code: { text: proc.code },
+    subject: { reference: `Patient/${proc.patientId}` },
+    performedDateTime: proc.performedDateTime?.toISOString(),
+    bodySite: proc.bodySite ? [{ text: proc.bodySite }] : undefined,
+  };
+}
+
+export function toFhirAllergyIntolerance(a: AllergyIntolerance): Record<string, unknown> {
+  return {
+    resourceType: "AllergyIntolerance",
+    id: a.id,
+    meta: { lastUpdated: a.updatedAt.toISOString() },
+    clinicalStatus: a.clinicalStatus
+      ? { coding: [{ code: a.clinicalStatus }] }
+      : undefined,
+    verificationStatus: a.verificationStatus
+      ? { coding: [{ code: a.verificationStatus }] }
+      : undefined,
+    type: a.type ?? undefined,
+    category: a.category ? [a.category] : undefined,
+    code: { text: a.code },
+    patient: { reference: `Patient/${a.patientId}` },
+    reaction: a.reaction
+      ? [{ manifestation: [{ text: a.reaction }] }]
+      : undefined,
+    onsetDateTime: a.onsetDateTime?.toISOString(),
+  };
+}
+
+export function toFhirEncounter(e: EncounterWithPractitioner): Record<string, unknown> {
+  const participant =
+    e.practitionerId && e.practitioner
+      ? [
+          {
+            actor: { reference: `Practitioner/${e.practitioner.id}` },
+          },
+        ]
+      : undefined;
+  return {
+    resourceType: "Encounter",
+    id: e.id,
+    meta: { lastUpdated: e.updatedAt.toISOString() },
+    status: e.status ?? undefined,
+    class: e.classCode
+      ? {
+          system: "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          code: e.classCode,
+        }
+      : undefined,
+    type: e.typeText ? [{ text: e.typeText }] : undefined,
+    subject: { reference: `Patient/${e.patientId}` },
+    participant,
+    period: {
+      start: e.periodStart?.toISOString(),
+      end: e.periodEnd?.toISOString(),
+    },
+  };
+}
+
+export function toFhirCoverage(cov: Coverage): Record<string, unknown> {
+  return {
+    resourceType: "Coverage",
+    id: cov.id,
+    meta: { lastUpdated: cov.updatedAt.toISOString() },
+    status: cov.status ?? undefined,
+    beneficiary: { reference: `Patient/${cov.patientId}` },
+    subscriberId: cov.subscriberId ?? undefined,
+    relationship: cov.relationshipText ? { text: cov.relationshipText } : undefined,
+    period: {
+      start: cov.periodStart?.toISOString(),
+      end: cov.periodEnd?.toISOString(),
+    },
+    payor: cov.insurerName ? [{ display: cov.insurerName }] : undefined,
+    class: cov.planName
+      ? [
+          {
+            type: { text: "plan" },
+            name: cov.planName,
+            value: cov.memberId ?? undefined,
+          },
+        ]
+      : undefined,
+  };
+}
+
+export function toFhirMedicationRequest(mr: MedicationRequest): Record<string, unknown> {
+  return {
+    resourceType: "MedicationRequest",
+    id: mr.id,
+    meta: { lastUpdated: mr.updatedAt.toISOString() },
+    status: mr.status ?? undefined,
+    intent: mr.intent ?? undefined,
+    subject: { reference: `Patient/${mr.patientId}` },
+    medicationCodeableConcept: { text: mr.medicationCode },
+    dosageInstruction: mr.dosageText ? [{ text: mr.dosageText }] : undefined,
+    authoredOn: mr.authoredOn?.toISOString(),
+    requester: mr.requesterText ? { display: mr.requesterText } : undefined,
+  };
+}
+
+export function toFhirMedicationAdministration(ma: MedicationAdministration): Record<string, unknown> {
+  return {
+    resourceType: "MedicationAdministration",
+    id: ma.id,
+    meta: { lastUpdated: ma.updatedAt.toISOString() },
+    status: ma.status ?? undefined,
+    subject: { reference: `Patient/${ma.patientId}` },
+    medication: { concept: { text: ma.medicationCode } },
+    effectiveDateTime: ma.effectiveDateTime?.toISOString(),
+    dosage: ma.doseText ? { text: ma.doseText } : undefined,
+    route: ma.routeText ? { text: ma.routeText } : undefined,
+  };
+}
+
+export function toFhirMedicationDispense(md: MedicationDispense): Record<string, unknown> {
+  const noteParts: string[] = [];
+  if (md.quantityText) noteParts.push(`Quantity: ${md.quantityText}`);
+  if (md.daysSupply != null) noteParts.push(`Days supply: ${md.daysSupply}`);
+  return {
+    resourceType: "MedicationDispense",
+    id: md.id,
+    meta: { lastUpdated: md.updatedAt.toISOString() },
+    status: md.status ?? undefined,
+    subject: { reference: `Patient/${md.patientId}` },
+    medication: { concept: { text: md.medicationCode } },
+    whenHandedOver: md.whenHandedOver?.toISOString(),
+    note: noteParts.length ? [{ text: noteParts.join("; ") }] : undefined,
+  };
+}
+
+export function toFhirMedicationStatement(ms: MedicationStatement): Record<string, unknown> {
+  return {
+    resourceType: "MedicationStatement",
+    id: ms.id,
+    meta: { lastUpdated: ms.updatedAt.toISOString() },
+    status: ms.status ?? undefined,
+    subject: { reference: `Patient/${ms.patientId}` },
+    medication: { concept: { text: ms.medicationCode } },
+    effectiveDateTime: ms.effectiveDateTime?.toISOString(),
+    dosage: ms.dosageText ? [{ text: ms.dosageText }] : undefined,
+  };
+}
+
+export function toFhirMedication(m: Medication): Record<string, unknown> {
+  return {
+    resourceType: "Medication",
+    id: m.id,
+    meta: { lastUpdated: m.updatedAt.toISOString() },
+    code: { text: m.code },
+    status: m.status ?? undefined,
+    doseForm: m.form ? { text: m.form } : undefined,
+    ingredient: m.strength ? [{ item: { concept: { text: m.strength } } }] : undefined,
+  };
+}
+
+export function toFhirImmunization(im: Immunization): Record<string, unknown> {
+  return {
+    resourceType: "Immunization",
+    id: im.id,
+    meta: { lastUpdated: im.updatedAt.toISOString() },
+    status: im.status ?? undefined,
+    patient: { reference: `Patient/${im.patientId}` },
+    vaccineCode: { text: im.vaccineCode },
+    occurrenceDateTime: im.occurrenceDateTime?.toISOString(),
+    lotNumber: im.lotNumber ?? undefined,
+    manufacturer: im.manufacturerText ? { display: im.manufacturerText } : undefined,
   };
 }
 
@@ -115,15 +360,67 @@ export function toFhirDocumentReference(u: UploadArtifact, patientId: string): R
 
 export function toFhirCollectionBundle(p: PatientWithRelations): Record<string, unknown> {
   const entries: { resource: Record<string, unknown> }[] = [{ resource: toFhirPatient(p) }];
+
+  for (const pr of p.practitioners) {
+    entries.push({ resource: toFhirPractitioner(pr) });
+  }
+
   for (const o of p.observations) {
     entries.push({ resource: toFhirObservation(o) });
   }
+
+  for (const dr of p.diagnosticReports) {
+    entries.push({ resource: toFhirDiagnosticReport(dr) });
+  }
+
   for (const c of p.conditions) {
     entries.push({ resource: toFhirCondition(c) });
   }
+
+  for (const proc of p.procedures) {
+    entries.push({ resource: toFhirProcedure(proc) });
+  }
+
+  for (const a of p.allergyIntolerances) {
+    entries.push({ resource: toFhirAllergyIntolerance(a) });
+  }
+
+  for (const e of p.encounters) {
+    entries.push({ resource: toFhirEncounter(e) });
+  }
+
+  for (const cov of p.coverages) {
+    entries.push({ resource: toFhirCoverage(cov) });
+  }
+
+  for (const mr of p.medicationRequests) {
+    entries.push({ resource: toFhirMedicationRequest(mr) });
+  }
+
+  for (const ma of p.medicationAdministrations) {
+    entries.push({ resource: toFhirMedicationAdministration(ma) });
+  }
+
+  for (const md of p.medicationDispenses) {
+    entries.push({ resource: toFhirMedicationDispense(md) });
+  }
+
+  for (const ms of p.medicationStatements) {
+    entries.push({ resource: toFhirMedicationStatement(ms) });
+  }
+
+  for (const m of p.medications) {
+    entries.push({ resource: toFhirMedication(m) });
+  }
+
+  for (const im of p.immunizations) {
+    entries.push({ resource: toFhirImmunization(im) });
+  }
+
   for (const u of p.uploads) {
     entries.push({ resource: toFhirDocumentReference(u, p.id) });
   }
+
   return {
     resourceType: "Bundle",
     type: "collection",
