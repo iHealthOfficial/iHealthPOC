@@ -133,7 +133,9 @@ export default function PatientEntry() {
   }
 
   return (
-    <form onSubmit={submit}>
+    <div className="patient-entry-page">
+      <div className="patient-entry-inner">
+        <form onSubmit={submit}>
       <h1>Manual patient entry</h1>
       <p className="lead">
         Maps to FHIR <strong>Patient</strong>, <strong>Observation</strong> (labs use
@@ -373,6 +375,8 @@ export default function PatientEntry() {
       <button type="submit" className="btn" disabled={busy}>
         {busy ? "Saving…" : "Save patient & clinical data"}
       </button>
-    </form>
+        </form>
+      </div>
+    </div>
   );
 }

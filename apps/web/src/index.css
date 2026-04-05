@@ -569,6 +569,20 @@ h1 {
   min-height: calc(100vh - 56px);
 }
 
+/* Manual patient entry — chunk 1: same gradient shell as homepage */
+.patient-entry-page {
+  background: linear-gradient(180deg, #e3f1fb 0%, #f5f9fd 38%, #fafcfe 100%);
+  min-height: calc(100vh - 56px);
+}
+
+/* Chunk 2: content width matches other app sheets */
+.patient-entry-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  width: 100%;
+}
+
 .home-section {
   padding: 2.5rem 1.5rem 3rem;
 }
