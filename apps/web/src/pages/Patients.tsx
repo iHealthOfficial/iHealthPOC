@@ -181,7 +181,7 @@ export default function Patients() {
 
   return (
     <>
-      <h1>Patients</h1>
+      <h1>Patient directory</h1>
       <p className="lead">
         FHIR-aligned columns (R4-style naming). Filters apply to all patient fields{" "}
         <strong>except identifiers</strong>. Use field search for a substring on one chosen field.

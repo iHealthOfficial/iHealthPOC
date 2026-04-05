@@ -92,6 +92,7 @@ export default function PatientEntry() {
       labs: labs
         .filter((l) => l.code.trim())
         .map((l) => ({
+          category: "laboratory" as const,
           code: l.code.trim(),
           valueQuantity: l.valueQuantity ? Number(l.valueQuantity) : undefined,
           valueQuantityUnit: l.valueQuantityUnit || undefined,
@@ -133,7 +134,7 @@ export default function PatientEntry() {
 
   return (
     <form onSubmit={submit}>
-      <h1>Patient &amp; clinical entry</h1>
+      <h1>Manual patient entry</h1>
       <p className="lead">
         Maps to FHIR <strong>Patient</strong>, <strong>Observation</strong> (labs use
         category <code>laboratory</code> automatically), and <strong>Condition</strong>{" "}

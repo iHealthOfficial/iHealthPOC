@@ -105,6 +105,15 @@ const observationIn = z.object({
   effectiveDateTime: z.string().optional(),
 });
 
+/** Labs payload omits category — always stored as `laboratory` Observation. */
+const labObservationIn = z.object({
+  code: z.string().min(1),
+  valueString: z.string().optional(),
+  valueQuantity: z.number().optional(),
+  valueQuantityUnit: z.string().optional(),
+  effectiveDateTime: z.string().optional(),
+});
+
 const conditionIn = z.object({
   clinicalStatus: z.string().optional(),
   verificationStatus: z.string().optional(),
@@ -115,7 +124,7 @@ const conditionIn = z.object({
 
 const ingestBody = z.object({
   patient: patientCore,
-  labs: z.array(observationIn).optional().default([]),
+  labs: z.array(labObservationIn).optional().default([]),
   observations: z.array(observationIn).optional().default([]),
   conditions: z.array(conditionIn).optional().default([]),
 });
