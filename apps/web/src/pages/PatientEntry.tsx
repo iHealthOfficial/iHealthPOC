@@ -41,6 +41,22 @@ const emptyCond = (): CondRow => ({
   verificationStatus: "confirmed",
 });
 
+/** Main FHIR resource tabs (chunk 3: UI + state only; chunk 4 wires section visibility). */
+const MAIN_TABS = [
+  { id: "patient" as const, label: "Patient" },
+  { id: "practitioner" as const, label: "Practitioner" },
+  { id: "observation" as const, label: "Observation" },
+  { id: "diagnosticReport" as const, label: "Diagnostic report" },
+  { id: "condition" as const, label: "Condition" },
+  { id: "procedure" as const, label: "Procedure" },
+  { id: "allergy" as const, label: "Allergy intolerance" },
+  { id: "encounter" as const, label: "Encounter" },
+  { id: "insurance" as const, label: "Insurance" },
+  { id: "medication" as const, label: "Medication & vaccine" },
+];
+
+type MainTabId = (typeof MAIN_TABS)[number]["id"];
+
 export default function PatientEntry() {
   const [family, setFamily] = useState("");
   const [given, setGiven] = useState("");
@@ -60,6 +76,8 @@ export default function PatientEntry() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [activeMainTab, setActiveMainTab] = useState<MainTabId>("patient");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -150,6 +168,30 @@ export default function PatientEntry() {
           page.
         </div>
       )}
+
+      <div
+        className="pe-main-tabs"
+        role="tablist"
+        aria-label="FHIR resource sections"
+      >
+        {MAIN_TABS.map((tab) => {
+          const selected = activeMainTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              id={`pe-tab-${tab.id}`}
+              tabIndex={selected ? 0 : -1}
+              className={["pe-main-tab", selected ? "pe-main-tab--active" : ""].filter(Boolean).join(" ")}
+              onClick={() => setActiveMainTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
       <div className="card">
         <h2>Patient (FHIR Patient)</h2>
