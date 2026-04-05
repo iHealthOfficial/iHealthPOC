@@ -67,7 +67,11 @@ model Practitioner {
   identifierValue  String?
   specialty        String?
 
-  encounters Encounter[]
+  /// Optional encounter context (separate from Encounter.practitioner participant link)
+  contextEncounterId String?
+  contextEncounter   Encounter? @relation("PractitionerContextEncounter", fields: [contextEncounterId], references: [id], onDelete: SetNull)
+
+  encountersWhereParticipant Encounter[] @relation("EncounterParticipantPractitioner")
 }
 
 /// FHIR: DiagnosticReport (report-level metadata; lab values remain Observation laboratory)
@@ -78,6 +82,9 @@ model DiagnosticReport {
 
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   status              String   @default("final")
   code                String
@@ -95,6 +102,9 @@ model Procedure {
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
   status              String?
   code                String
   performedDateTime   DateTime?
@@ -109,6 +119,9 @@ model AllergyIntolerance {
 
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   clinicalStatus      String?
   verificationStatus  String?
@@ -129,13 +142,30 @@ model Encounter {
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   practitionerId String?
-  practitioner   Practitioner? @relation(fields: [practitionerId], references: [id], onDelete: SetNull)
+  practitioner   Practitioner? @relation("EncounterParticipantPractitioner", fields: [practitionerId], references: [id], onDelete: SetNull)
 
   status      String?
   classCode   String?
   typeText    String?
   periodStart DateTime?
   periodEnd   DateTime?
+
+  /// External / legacy business identifier from the source system (manual entry; not the internal UUID).
+  legacyIdentifierSystem String?
+  legacyIdentifierValue  String?
+
+  practitionersWithContext Practitioner[] @relation("PractitionerContextEncounter")
+  observations             Observation[]
+  conditions               Condition[]
+  diagnosticReports        DiagnosticReport[]
+  procedures               Procedure[]
+  allergyIntolerances      AllergyIntolerance[]
+  medicationRequests       MedicationRequest[]
+  medicationAdministrations MedicationAdministration[]
+  medicationDispenses      MedicationDispense[]
+  medicationStatements     MedicationStatement[]
+  medications              Medication[]
+  immunizations            Immunization[]
 }
 
 /// FHIR: Coverage (manual “Insurance” entry; aligns to coverage use-case vs InsurancePlan)
@@ -166,6 +196,9 @@ model MedicationRequest {
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
   status         String?
   intent         String?
   medicationCode String
@@ -183,6 +216,9 @@ model MedicationAdministration {
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
   status              String?
   medicationCode      String
   effectiveDateTime   DateTime?
@@ -198,6 +234,9 @@ model MedicationDispense {
 
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   status           String?
   medicationCode   String
@@ -215,6 +254,9 @@ model MedicationStatement {
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
   status           String?
   medicationCode   String
   effectiveDateTime DateTime?
@@ -229,6 +271,9 @@ model Medication {
 
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   code     String
   status   String?
@@ -245,6 +290,9 @@ model Immunization {
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
   status               String?
   vaccineCode          String
   occurrenceDateTime   DateTime?
@@ -260,6 +308,9 @@ model Observation {
 
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   /// laboratory | vital-signs | exam | survey | procedure | other
   category  String
@@ -280,6 +331,9 @@ model Condition {
 
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   clinicalStatus      String? // active | recurrence | inactive | remission | resolved
   verificationStatus  String? // unconfirmed | provisional | differential | confirmed

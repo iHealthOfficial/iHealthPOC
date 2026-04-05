@@ -608,6 +608,20 @@ h1 {
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.pe-tab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pe-tab-actions .btn {
+  min-width: 10rem;
+}
+
 /* Chunk 21: per-resource hover / active tints (main FHIR tabs) */
 .pe-main-tab.pe-main-tab--patient:not(.pe-main-tab--active):hover {
   background: rgba(45, 106, 93, 0.12);
@@ -619,6 +633,18 @@ h1 {
   color: #134038;
   border-color: rgba(45, 106, 93, 0.42);
   box-shadow: 0 1px 4px rgba(45, 106, 93, 0.18);
+}
+
+.pe-main-tab.pe-main-tab--updateExisting:not(.pe-main-tab--active):hover {
+  background: rgba(120, 95, 50, 0.14);
+  color: #5c4320;
+  border-color: rgba(120, 95, 50, 0.32);
+}
+.pe-main-tab--active.pe-main-tab--updateExisting {
+  background: rgba(120, 95, 50, 0.18);
+  color: #4a3618;
+  border-color: rgba(120, 95, 50, 0.46);
+  box-shadow: 0 1px 4px rgba(120, 95, 50, 0.2);
 }
 
 .pe-main-tab.pe-main-tab--practitioner:not(.pe-main-tab--active):hover {
