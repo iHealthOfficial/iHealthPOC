@@ -613,7 +613,9 @@ export default function PatientEntry() {
               aria-controls={`pe-panel-${tab.id}`}
               id={`pe-tab-${tab.id}`}
               tabIndex={selected ? 0 : -1}
-              className={["pe-main-tab", selected ? "pe-main-tab--active" : ""].filter(Boolean).join(" ")}
+              className={["pe-main-tab", `pe-main-tab--${tab.id}`, selected ? "pe-main-tab--active" : ""]
+                .filter(Boolean)
+                .join(" ")}
               onClick={() => setActiveMainTab(tab.id)}
             >
               {tab.label}
@@ -1544,7 +1546,9 @@ export default function PatientEntry() {
                   type="button"
                   role="tab"
                   aria-selected={sel}
-                  className={["pe-med-tab", sel ? "pe-med-tab--active" : ""].filter(Boolean).join(" ")}
+                  className={["pe-med-tab", `pe-med-tab--${tab.id}`, sel ? "pe-med-tab--active" : ""]
+                    .filter(Boolean)
+                    .join(" ")}
                   onClick={() => setActiveMedSubTab(tab.id)}
                 >
                   {tab.label}

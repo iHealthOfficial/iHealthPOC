@@ -605,20 +605,128 @@ h1 {
   color: var(--muted);
   background: transparent;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.pe-main-tab:hover {
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--text);
-  border-color: var(--border);
+/* Chunk 21: per-resource hover / active tints (main FHIR tabs) */
+.pe-main-tab.pe-main-tab--patient:not(.pe-main-tab--active):hover {
+  background: rgba(45, 106, 93, 0.12);
+  color: #1a5246;
+  border-color: rgba(45, 106, 93, 0.28);
+}
+.pe-main-tab--active.pe-main-tab--patient {
+  background: rgba(45, 106, 93, 0.16);
+  color: #134038;
+  border-color: rgba(45, 106, 93, 0.42);
+  box-shadow: 0 1px 4px rgba(45, 106, 93, 0.18);
 }
 
-.pe-main-tab--active {
-  background: #fff;
-  color: var(--accent);
-  border-color: rgba(45, 106, 93, 0.35);
-  box-shadow: 0 1px 3px rgba(30, 80, 120, 0.08);
+.pe-main-tab.pe-main-tab--practitioner:not(.pe-main-tab--active):hover {
+  background: rgba(70, 120, 210, 0.14);
+  color: #2a4a8a;
+  border-color: rgba(70, 120, 210, 0.3);
+}
+.pe-main-tab--active.pe-main-tab--practitioner {
+  background: rgba(70, 120, 210, 0.18);
+  color: #1f3d78;
+  border-color: rgba(70, 120, 210, 0.45);
+  box-shadow: 0 1px 4px rgba(70, 120, 210, 0.2);
+}
+
+.pe-main-tab.pe-main-tab--observation:not(.pe-main-tab--active):hover {
+  background: rgba(30, 160, 175, 0.13);
+  color: #0d5c68;
+  border-color: rgba(30, 160, 175, 0.28);
+}
+.pe-main-tab--active.pe-main-tab--observation {
+  background: rgba(30, 160, 175, 0.17);
+  color: #0a4d57;
+  border-color: rgba(30, 160, 175, 0.42);
+  box-shadow: 0 1px 4px rgba(30, 160, 175, 0.18);
+}
+
+.pe-main-tab.pe-main-tab--diagnosticReport:not(.pe-main-tab--active):hover {
+  background: rgba(80, 130, 185, 0.14);
+  color: #2a5080;
+  border-color: rgba(80, 130, 185, 0.3);
+}
+.pe-main-tab--active.pe-main-tab--diagnosticReport {
+  background: rgba(80, 130, 185, 0.18);
+  color: #224066;
+  border-color: rgba(80, 130, 185, 0.44);
+  box-shadow: 0 1px 4px rgba(80, 130, 185, 0.2);
+}
+
+.pe-main-tab.pe-main-tab--condition:not(.pe-main-tab--active):hover {
+  background: rgba(190, 95, 110, 0.12);
+  color: #6e2f3a;
+  border-color: rgba(190, 95, 110, 0.28);
+}
+.pe-main-tab--active.pe-main-tab--condition {
+  background: rgba(190, 95, 110, 0.17);
+  color: #5c2832;
+  border-color: rgba(190, 95, 110, 0.42);
+  box-shadow: 0 1px 4px rgba(190, 95, 110, 0.18);
+}
+
+.pe-main-tab.pe-main-tab--procedure:not(.pe-main-tab--active):hover {
+  background: rgba(200, 145, 45, 0.14);
+  color: #6a4a12;
+  border-color: rgba(200, 145, 45, 0.32);
+}
+.pe-main-tab--active.pe-main-tab--procedure {
+  background: rgba(200, 145, 45, 0.19);
+  color: #523a0e;
+  border-color: rgba(200, 145, 45, 0.45);
+  box-shadow: 0 1px 4px rgba(200, 145, 45, 0.2);
+}
+
+.pe-main-tab.pe-main-tab--allergy:not(.pe-main-tab--active):hover {
+  background: rgba(210, 105, 75, 0.13);
+  color: #7a3824;
+  border-color: rgba(210, 105, 75, 0.3);
+}
+.pe-main-tab--active.pe-main-tab--allergy {
+  background: rgba(210, 105, 75, 0.18);
+  color: #632e1d;
+  border-color: rgba(210, 105, 75, 0.44);
+  box-shadow: 0 1px 4px rgba(210, 105, 75, 0.2);
+}
+
+.pe-main-tab.pe-main-tab--encounter:not(.pe-main-tab--active):hover {
+  background: rgba(95, 85, 195, 0.12);
+  color: #3a2f7a;
+  border-color: rgba(95, 85, 195, 0.28);
+}
+.pe-main-tab--active.pe-main-tab--encounter {
+  background: rgba(95, 85, 195, 0.17);
+  color: #2f2765;
+  border-color: rgba(95, 85, 195, 0.42);
+  box-shadow: 0 1px 4px rgba(95, 85, 195, 0.2);
+}
+
+.pe-main-tab.pe-main-tab--insurance:not(.pe-main-tab--active):hover {
+  background: rgba(55, 140, 95, 0.13);
+  color: #1e5236;
+  border-color: rgba(55, 140, 95, 0.3);
+}
+.pe-main-tab--active.pe-main-tab--insurance {
+  background: rgba(55, 140, 95, 0.17);
+  color: #17432c;
+  border-color: rgba(55, 140, 95, 0.44);
+  box-shadow: 0 1px 4px rgba(55, 140, 95, 0.18);
+}
+
+.pe-main-tab.pe-main-tab--medication:not(.pe-main-tab--active):hover {
+  background: rgba(125, 85, 185, 0.13);
+  color: #4a2f6e;
+  border-color: rgba(125, 85, 185, 0.3);
+}
+.pe-main-tab--active.pe-main-tab--medication {
+  background: rgba(125, 85, 185, 0.18);
+  color: #3d275c;
+  border-color: rgba(125, 85, 185, 0.44);
+  box-shadow: 0 1px 4px rgba(125, 85, 185, 0.2);
 }
 
 .pe-inline-check {
@@ -657,20 +765,80 @@ h1 {
   color: #5c4d6e;
   background: transparent;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.pe-med-tab:hover {
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--text);
-  border-color: rgba(120, 90, 180, 0.22);
+/* Chunk 21: medication sub-tab shades (same purple family, shifted per resource) */
+.pe-med-tab.pe-med-tab--request:not(.pe-med-tab--active):hover {
+  background: rgba(120, 90, 180, 0.16);
+  color: #4a2f75;
+  border-color: rgba(120, 90, 180, 0.32);
+}
+.pe-med-tab--active.pe-med-tab--request {
+  background: rgba(120, 90, 180, 0.22);
+  color: #3d2762;
+  border-color: rgba(120, 90, 180, 0.48);
+  box-shadow: 0 1px 3px rgba(100, 70, 160, 0.2);
 }
 
-.pe-med-tab--active {
-  background: #fff;
-  color: #5a3d8a;
-  border-color: rgba(120, 90, 180, 0.35);
-  box-shadow: 0 1px 2px rgba(60, 40, 100, 0.08);
+.pe-med-tab.pe-med-tab--administration:not(.pe-med-tab--active):hover {
+  background: rgba(100, 110, 200, 0.15);
+  color: #353d80;
+  border-color: rgba(100, 110, 200, 0.32);
+}
+.pe-med-tab--active.pe-med-tab--administration {
+  background: rgba(100, 110, 200, 0.2);
+  color: #2c336a;
+  border-color: rgba(100, 110, 200, 0.46);
+  box-shadow: 0 1px 3px rgba(90, 100, 190, 0.2);
+}
+
+.pe-med-tab.pe-med-tab--dispense:not(.pe-med-tab--active):hover {
+  background: rgba(140, 85, 165, 0.15);
+  color: #5a2f68;
+  border-color: rgba(140, 85, 165, 0.32);
+}
+.pe-med-tab--active.pe-med-tab--dispense {
+  background: rgba(140, 85, 165, 0.2);
+  color: #4a2756;
+  border-color: rgba(140, 85, 165, 0.46);
+  box-shadow: 0 1px 3px rgba(130, 75, 155, 0.2);
+}
+
+.pe-med-tab.pe-med-tab--statement:not(.pe-med-tab--active):hover {
+  background: rgba(150, 120, 195, 0.14);
+  color: #5c4678;
+  border-color: rgba(150, 120, 195, 0.3);
+}
+.pe-med-tab--active.pe-med-tab--statement {
+  background: rgba(150, 120, 195, 0.19);
+  color: #4a3963;
+  border-color: rgba(150, 120, 195, 0.44);
+  box-shadow: 0 1px 3px rgba(140, 110, 185, 0.18);
+}
+
+.pe-med-tab.pe-med-tab--medication:not(.pe-med-tab--active):hover {
+  background: rgba(110, 75, 160, 0.16);
+  color: #422a62;
+  border-color: rgba(110, 75, 160, 0.34);
+}
+.pe-med-tab--active.pe-med-tab--medication {
+  background: rgba(110, 75, 160, 0.22);
+  color: #362252;
+  border-color: rgba(110, 75, 160, 0.5);
+  box-shadow: 0 1px 3px rgba(95, 65, 145, 0.22);
+}
+
+.pe-med-tab.pe-med-tab--immunization:not(.pe-med-tab--active):hover {
+  background: rgba(85, 120, 195, 0.14);
+  color: #2a4580;
+  border-color: rgba(85, 120, 195, 0.32);
+}
+.pe-med-tab--active.pe-med-tab--immunization {
+  background: rgba(85, 120, 195, 0.2);
+  color: #223866;
+  border-color: rgba(85, 120, 195, 0.46);
+  box-shadow: 0 1px 3px rgba(75, 110, 185, 0.2);
 }
 
 .pe-med-section-title {
