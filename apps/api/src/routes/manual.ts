@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Express, Request, Response } from "express";
 import { manualDir } from "../paths.js";
+import { paramString } from "../routeParams.js";
 
 type ManifestPage = {
   id: string;
@@ -31,8 +32,13 @@ export function registerManualRoutes(app: Express): void {
 
   app.get("/api/manual/section/:id", (req: Request, res: Response) => {
     try {
+      const sectionId = paramString(req.params.id);
+      if (!sectionId) {
+        res.status(400).json({ error: "Missing section id" });
+        return;
+      }
       const manifest = readManifest();
-      const page = manifest.pages.find((p) => p.id === req.params.id);
+      const page = manifest.pages.find((p) => p.id === sectionId);
       if (!page) {
         res.status(404).json({ error: "Unknown section" });
         return;

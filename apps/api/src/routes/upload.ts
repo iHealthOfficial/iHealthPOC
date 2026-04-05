@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Express, Request, Response } from "express";
 import multer from "multer";
 import { prisma } from "../db.js";
+import { paramString } from "../routeParams.js";
 import { processUploadArtifact } from "../services/processUpload.js";
 import { ensureUploadsDir, uploadsDir } from "../paths.js";
 
@@ -95,7 +96,12 @@ export function registerUploadRoutes(app: Express): void {
   });
 
   app.get("/api/uploads/:id/file", async (req: Request, res: Response) => {
-    const row = await prisma.uploadArtifact.findUnique({ where: { id: req.params.id } });
+    const id = paramString(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "Missing id" });
+      return;
+    }
+    const row = await prisma.uploadArtifact.findUnique({ where: { id } });
     if (!row) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -109,7 +115,12 @@ export function registerUploadRoutes(app: Express): void {
   });
 
   app.get("/api/uploads/:id", async (req: Request, res: Response) => {
-    const row = await prisma.uploadArtifact.findUnique({ where: { id: req.params.id } });
+    const id = paramString(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "Missing id" });
+      return;
+    }
+    const row = await prisma.uploadArtifact.findUnique({ where: { id } });
     if (!row) {
       res.status(404).json({ error: "Not found" });
       return;

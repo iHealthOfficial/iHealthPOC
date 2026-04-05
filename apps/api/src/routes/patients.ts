@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { paramString } from "../routeParams.js";
 
 const patientCore = z.object({
   family: z.string().optional(),
@@ -63,8 +64,13 @@ export function registerPatientRoutes(app: Express): void {
   });
 
   app.get("/api/patients/:id", async (req: Request, res: Response) => {
+    const id = paramString(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "Missing id" });
+      return;
+    }
     const p = await prisma.patient.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: { observations: true, conditions: true, uploads: true },
     });
     if (!p) {
