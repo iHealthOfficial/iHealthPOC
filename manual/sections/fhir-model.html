@@ -1,4 +1,9 @@
 <h2>FHIR mapping</h2>
+<p style="background: #e8f2ef; border-left: 4px solid #2d6a5d; padding: 0.65rem 0.85rem; margin: 0 0 1rem; font-size: 0.9rem">
+  <strong>Repository sync check:</strong> If you see this green callout on the in-app <strong>Manual → FHIR mapping</strong>
+  page after deploying or restarting the API, this file was loaded from your latest <code>git pull</code> / GitLab revision.
+  Commit and push this change to confirm GitLab is updating.
+</p>
 <table style="width:100%; border-collapse: collapse; font-size: 0.9rem">
   <thead>
     <tr style="border-bottom: 1px solid var(--border, #ccc); text-align: left">
@@ -17,15 +22,19 @@
     </tr>
     <tr style="border-bottom: 1px solid #eee">
       <td style="padding: 0.45rem 0"><code>Observation</code> (other)</td>
-      <td>Observation · vital-signs, exam etc.</td>
+      <td>Observation · vital-signs, exam, survey, etc.</td>
     </tr>
-    <tr>
+    <tr style="border-bottom: 1px solid #eee">
       <td style="padding: 0.45rem 0"><code>Condition</code></td>
       <td>Condition (diagnosis)</td>
+    </tr>
+    <tr>
+      <td style="padding: 0.45rem 0"><code>UploadArtifact</code></td>
+      <td>Not a core FHIR type; future mapping to <code>DocumentReference</code> / <code>Binary</code>. Local scan + OCR metadata can attach here later.</td>
     </tr>
   </tbody>
 </table>
 <p>
-  <code>UploadArtifact</code> is not a FHIR resource yet; it can later map to
-  DocumentReference or Binary.
+  <code>UploadArtifact</code> stores file metadata and paths today; clinical text from OCR can be linked to
+  <code>DocumentReference</code> or downstream <code>Observation</code> in a future pipeline.
 </p>
