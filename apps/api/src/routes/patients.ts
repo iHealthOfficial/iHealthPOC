@@ -262,6 +262,40 @@ const conditionIn = z.object({
   encounterIndex: encounterIndexIn,
 });
 
+const familyMemberHistoryConditionIn = z.object({
+  code: z.string().min(1),
+  outcomeText: z.string().optional(),
+  outcomeCode: z.string().optional(),
+  contributedToDeath: z.boolean().optional(),
+});
+
+const familyMemberHistoryProcedureIn = z.object({
+  code: z.string().min(1),
+  outcomeText: z.string().optional(),
+  outcomeCode: z.string().optional(),
+  contributedToDeath: z.boolean().optional(),
+});
+
+const familyMemberHistoryIn = z.object({
+  identifierSystem: z.string().optional(),
+  identifierValue: z.string().optional(),
+  status: z.string().optional(),
+  dataAbsentReasonText: z.string().optional(),
+  dataAbsentReasonCode: z.string().optional(),
+  date: z.string().optional(),
+  name: z.string().optional(),
+  relationshipText: z.string().optional(),
+  relationshipCode: z.string().optional(),
+  sex: z.string().optional(),
+  ageString: z.string().optional(),
+  deceasedBoolean: z.boolean().optional(),
+  deceasedDate: z.string().optional(),
+  reasonText: z.string().optional(),
+  reasonCode: z.string().optional(),
+  conditions: z.array(familyMemberHistoryConditionIn).optional().default([]),
+  procedures: z.array(familyMemberHistoryProcedureIn).optional().default([]),
+});
+
 const ingestBody = z.object({
   patient: patientCore,
   practitioners: z.array(practitionerIn).optional().default([]),
@@ -280,6 +314,7 @@ const ingestBody = z.object({
   medicationStatements: z.array(medicationStatementIn).optional().default([]),
   medications: z.array(medicationProductIn).optional().default([]),
   immunizations: z.array(immunizationIn).optional().default([]),
+  familyMemberHistories: z.array(familyMemberHistoryIn).optional().default([]),
 });
 
 function parseDate(s: string | undefined): Date | undefined {
@@ -305,6 +340,7 @@ const patientIncludeAll = {
   medicationStatements: true,
   medications: true,
   immunizations: true,
+  familyMemberHistories: { include: { conditions: true, procedures: true } },
 } as const;
 
 type IngestPayload = z.infer<typeof ingestBody>;
@@ -330,6 +366,7 @@ async function deletePatientClinicalChildren(tx: Prisma.TransactionClient, patie
   await tx.encounter.deleteMany({ where: { patientId } });
   await tx.practitioner.deleteMany({ where: { patientId } });
   await tx.organization.deleteMany({ where: { patientId } });
+  await tx.familyMemberHistory.deleteMany({ where: { patientId } });
   await tx.coverage.deleteMany({ where: { patientId } });
 }
 
@@ -353,6 +390,7 @@ async function createPatientClinicalChildren(
     medicationStatements,
     medications,
     immunizations,
+    familyMemberHistories,
   }: IngestPayload,
 ) {
   const practitionerIds: string[] = [];
@@ -610,6 +648,45 @@ async function createPatientClinicalChildren(
         lotNumber: im.lotNumber,
         manufacturerText: im.manufacturerText,
         encounterId: encounterIdAt(im.encounterIndex, encounterIds),
+      },
+    });
+  }
+
+  for (const fmh of familyMemberHistories) {
+    await tx.familyMemberHistory.create({
+      data: {
+        patientId,
+        identifierSystem: fmh.identifierSystem,
+        identifierValue: fmh.identifierValue,
+        status: fmh.status,
+        dataAbsentReasonText: fmh.dataAbsentReasonText,
+        dataAbsentReasonCode: fmh.dataAbsentReasonCode,
+        date: parseDate(fmh.date),
+        name: fmh.name,
+        relationshipText: fmh.relationshipText,
+        relationshipCode: fmh.relationshipCode,
+        sex: fmh.sex,
+        ageString: fmh.ageString,
+        deceasedBoolean: fmh.deceasedBoolean,
+        deceasedDate: parseDate(fmh.deceasedDate),
+        reasonText: fmh.reasonText,
+        reasonCode: fmh.reasonCode,
+        conditions: {
+          create: fmh.conditions.map((c) => ({
+            code: c.code,
+            outcomeText: c.outcomeText,
+            outcomeCode: c.outcomeCode,
+            contributedToDeath: c.contributedToDeath,
+          })),
+        },
+        procedures: {
+          create: fmh.procedures.map((proc) => ({
+            code: proc.code,
+            outcomeText: proc.outcomeText,
+            outcomeCode: proc.outcomeCode,
+            contributedToDeath: proc.contributedToDeath,
+          })),
+        },
       },
     });
   }
