@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 
 type PatientRow = {
@@ -312,6 +313,7 @@ export default function Patients() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>summary</th>
                 <th>active</th>
                 <th>name.family</th>
                 <th>name.given</th>
@@ -332,6 +334,9 @@ export default function Patients() {
               {!loading &&
                 rows.map((r) => (
                   <tr key={r.id}>
+                    <td>
+                      <Link to={`/patient/summary/${encodeURIComponent(r.id)}`}>View</Link>
+                    </td>
                     <td>{String(r.active)}</td>
                     <td>{r.family ?? "—"}</td>
                     <td>{formatGiven(r.given)}</td>

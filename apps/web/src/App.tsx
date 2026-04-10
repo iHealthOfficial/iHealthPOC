@@ -3,6 +3,7 @@ import { IconFileText, IconHome, IconUpload, IconUserPlus, IconUsers } from "./c
 import Home from "./pages/Home";
 import Manual from "./pages/Manual";
 import PatientEntry from "./pages/PatientEntry";
+import PatientSummary from "./pages/PatientSummary";
 import Patients from "./pages/Patients";
 import Upload from "./pages/Upload";
 
@@ -15,6 +16,7 @@ export default function App() {
   const { pathname } = useLocation();
   const isHome = pathname === "/";
   const isPatientEntry = pathname === "/patient";
+  const isPatientSummary = pathname.startsWith("/patient/summary/");
 
   return (
     <div className="app-root">
@@ -50,13 +52,14 @@ export default function App() {
 
       <main
         className={
-          isHome || isPatientEntry ? "site-main site-main--flush" : "site-main site-main--sheet"
+          isHome || isPatientEntry || isPatientSummary ? "site-main site-main--flush" : "site-main site-main--sheet"
         }
       >
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/patients" element={<Patients />} />
+          <Route path="/patient/summary/:id" element={<PatientSummary />} />
           <Route path="/patient" element={<PatientEntry />} />
           <Route path="/manual" element={<Manual />} />
         </Routes>
