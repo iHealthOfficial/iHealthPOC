@@ -11,19 +11,24 @@ import type {
   MedicationRequest,
   MedicationStatement,
   Observation,
+  Organization,
   Patient,
   Practitioner,
   Procedure,
   UploadArtifact,
 } from "@prisma/client";
 
-type EncounterWithPractitioner = Encounter & { practitioner: Practitioner | null };
+type EncounterWithPractitioner = Encounter & {
+  practitioner: Practitioner | null;
+  serviceProviderOrganization: Organization | null;
+};
 
 export type PatientWithRelations = Patient & {
   observations: Observation[];
   conditions: Condition[];
   uploads: UploadArtifact[];
   practitioners: Practitioner[];
+  organizations: Organization[];
   diagnosticReports: DiagnosticReport[];
   procedures: Procedure[];
   allergyIntolerances: AllergyIntolerance[];
@@ -122,6 +127,41 @@ export function toFhirPractitioner(pr: Practitioner): Record<string, unknown> {
       ? [{ code: { text: pr.specialty } }]
       : undefined,
     extension,
+  };
+}
+
+export function toFhirOrganization(org: Organization): Record<string, unknown> {
+  const identifier =
+    org.identifierSystem && org.identifierValue
+      ? [{ system: org.identifierSystem, value: org.identifierValue }]
+      : undefined;
+  const telecom: { system: string; value: string }[] = [];
+  if (org.contactPhone) telecom.push({ system: "phone", value: org.contactPhone });
+  if (org.contactEmail) telecom.push({ system: "email", value: org.contactEmail });
+  const address =
+    org.contactAddressLine
+      ? [{ line: [org.contactAddressLine] }]
+      : undefined;
+  const type =
+    org.typeText || org.typeCode
+      ? [
+          {
+            coding: org.typeCode ? [{ code: org.typeCode, display: org.typeText ?? undefined }] : undefined,
+            text: org.typeText ?? undefined,
+          },
+        ]
+      : undefined;
+
+  return {
+    resourceType: "Organization",
+    id: org.id,
+    meta: { lastUpdated: org.updatedAt.toISOString() },
+    identifier,
+    active: org.active,
+    type,
+    name: org.name || undefined,
+    telecom: telecom.length ? telecom : undefined,
+    address,
   };
 }
 
@@ -243,6 +283,9 @@ export function toFhirEncounter(e: EncounterWithPractitioner): Record<string, un
     type: e.typeText ? [{ text: e.typeText }] : undefined,
     subject: { reference: `Patient/${e.patientId}` },
     identifier,
+    serviceProvider: e.serviceProviderOrganizationId
+      ? { reference: `Organization/${e.serviceProviderOrganizationId}` }
+      : undefined,
     participant,
     period: {
       start: e.periodStart?.toISOString(),
@@ -401,6 +444,10 @@ export function toFhirCollectionBundle(p: PatientWithRelations): Record<string, 
 
   for (const pr of p.practitioners) {
     entries.push({ resource: toFhirPractitioner(pr) });
+  }
+
+  for (const org of p.organizations) {
+    entries.push({ resource: toFhirOrganization(org) });
   }
 
   for (const o of p.observations) {

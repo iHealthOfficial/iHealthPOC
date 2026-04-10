@@ -142,6 +142,19 @@ const allergyIntoleranceIn = z.object({
   encounterIndex: encounterIndexIn,
 });
 
+const organizationIn = z.object({
+  identifierSystem: z.string().optional(),
+  identifierValue: z.string().optional(),
+  active: z.boolean().optional(),
+  typeText: z.string().optional(),
+  typeCode: z.string().optional(),
+  name: z.string(),
+  description: z.string().optional(),
+  contactPhone: z.string().optional(),
+  contactEmail: z.string().optional(),
+  contactAddressLine: z.string().optional(),
+});
+
 const encounterIn = z.object({
   status: z.string().optional(),
   classCode: z.string().optional(),
@@ -149,6 +162,8 @@ const encounterIn = z.object({
   periodStart: z.string().optional(),
   periodEnd: z.string().optional(),
   practitionerIndex: z.number().int().nonnegative().nullable().optional(),
+  /** Index into ingest `organizations` for FHIR Encounter.serviceProvider */
+  serviceProviderOrganizationIndex: z.number().int().nonnegative().nullable().optional(),
   /** Business / legacy id from the source system (manual; not generated). */
   legacyIdentifierSystem: z.string().optional(),
   legacyIdentifierValue: z.string().optional(),
@@ -250,6 +265,7 @@ const conditionIn = z.object({
 const ingestBody = z.object({
   patient: patientCore,
   practitioners: z.array(practitionerIn).optional().default([]),
+  organizations: z.array(organizationIn).optional().default([]),
   labs: z.array(labObservationIn).optional().default([]),
   observations: z.array(observationIn).optional().default([]),
   conditions: z.array(conditionIn).optional().default([]),
@@ -277,10 +293,11 @@ const patientIncludeAll = {
   conditions: true,
   uploads: true,
   practitioners: true,
+  organizations: true,
   diagnosticReports: true,
   procedures: true,
   allergyIntolerances: true,
-  encounters: { include: { practitioner: true } },
+  encounters: { include: { practitioner: true, serviceProviderOrganization: true } },
   coverages: true,
   medicationRequests: true,
   medicationAdministrations: true,
@@ -312,6 +329,7 @@ async function deletePatientClinicalChildren(tx: Prisma.TransactionClient, patie
   await tx.immunization.deleteMany({ where: { patientId } });
   await tx.encounter.deleteMany({ where: { patientId } });
   await tx.practitioner.deleteMany({ where: { patientId } });
+  await tx.organization.deleteMany({ where: { patientId } });
   await tx.coverage.deleteMany({ where: { patientId } });
 }
 
@@ -320,6 +338,7 @@ async function createPatientClinicalChildren(
   patientId: string,
   {
     practitioners,
+    organizations,
     labs,
     observations,
     conditions,
@@ -353,15 +372,39 @@ async function createPatientClinicalChildren(
     practitionerIds.push(row.id);
   }
 
+  const organizationIds: string[] = [];
+  for (const org of organizations) {
+    const row = await tx.organization.create({
+      data: {
+        patientId,
+        identifierSystem: org.identifierSystem,
+        identifierValue: org.identifierValue,
+        active: org.active ?? true,
+        typeText: org.typeText,
+        typeCode: org.typeCode,
+        name: org.name.trim() || "",
+        description: org.description,
+        contactPhone: org.contactPhone,
+        contactEmail: org.contactEmail,
+        contactAddressLine: org.contactAddressLine,
+      },
+    });
+    organizationIds.push(row.id);
+  }
+
   const encounterIds: string[] = [];
   for (const enc of encounters) {
     const idx = enc.practitionerIndex;
     const practitionerId =
       idx != null && idx >= 0 && idx < practitionerIds.length ? practitionerIds[idx]! : undefined;
+    const spIdx = enc.serviceProviderOrganizationIndex;
+    const serviceProviderOrganizationId =
+      spIdx != null && spIdx >= 0 && spIdx < organizationIds.length ? organizationIds[spIdx]! : undefined;
     const row = await tx.encounter.create({
       data: {
         patientId,
         practitionerId,
+        serviceProviderOrganizationId,
         status: enc.status,
         classCode: enc.classCode,
         typeText: enc.typeText,

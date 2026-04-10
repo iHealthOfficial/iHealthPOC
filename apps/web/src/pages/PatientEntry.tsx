@@ -54,9 +54,25 @@ type EncounterRow = {
   periodEnd: string;
   /** Index in ingest `practitioners` array (only rows with given names), or "" for none */
   practitionerIndex: string;
+  /** Index in ingest `organizations` array (only rows with a name), or "" for none */
+  serviceProviderOrganizationIndex: string;
   /** Legacy / source-system encounter id (manual; not the internal UUID). */
   legacyIdentifierSystem: string;
   legacyIdentifierValue: string;
+};
+
+/** Maps to API Organization model (Encounter.serviceProvider). */
+type OrganizationRow = {
+  identifierSystem: string;
+  identifierValue: string;
+  active: boolean;
+  typeText: string;
+  typeCode: string;
+  name: string;
+  description: string;
+  contactPhone: string;
+  contactEmail: string;
+  contactAddressLine: string;
 };
 
 /** Maps to API Coverage model (patient insurance capture). */
@@ -196,8 +212,22 @@ const emptyEncounter = (): EncounterRow => ({
   periodStart: "",
   periodEnd: "",
   practitionerIndex: "",
+  serviceProviderOrganizationIndex: "",
   legacyIdentifierSystem: "",
   legacyIdentifierValue: "",
+});
+
+const emptyOrganization = (): OrganizationRow => ({
+  identifierSystem: "",
+  identifierValue: "",
+  active: true,
+  typeText: "",
+  typeCode: "",
+  name: "",
+  description: "",
+  contactPhone: "",
+  contactEmail: "",
+  contactAddressLine: "",
 });
 
 const emptyCoverage = (): CoverageRow => ({
@@ -300,6 +330,7 @@ const MAIN_TABS = [
   { id: "patient" as const, label: "Patient" },
   { id: "updateExisting" as const, label: "Update existing" },
   { id: "practitioner" as const, label: "Practitioner" },
+  { id: "organization" as const, label: "Organization" },
   { id: "observation" as const, label: "Observation" },
   { id: "diagnosticReport" as const, label: "Diagnostic report" },
   { id: "condition" as const, label: "Condition" },
@@ -311,6 +342,23 @@ const MAIN_TABS = [
 ];
 
 type MainTabId = (typeof MAIN_TABS)[number]["id"];
+
+/** Indices match the order of organizations sent to ingest (rows without a name are skipped). */
+function organizationPayloadOptions(rows: OrganizationRow[]): { index: number; label: string }[] {
+  const options: { index: number; label: string }[] = [];
+  let idx = 0;
+  for (const row of rows) {
+    if (!row.name.trim()) continue;
+    const label = row.name.trim() || `Organization ${idx + 1}`;
+    options.push({ index: idx, label });
+    idx++;
+  }
+  return options;
+}
+
+function organizationRowIncludedInPayload(org: OrganizationRow): boolean {
+  return org.name.trim() !== "";
+}
 
 /** Indices match the order of practitioners sent to ingest (rows without given names are skipped). */
 function practitionerPayloadOptions(rows: PractitionerRow[]): { index: number; label: string }[] {
@@ -340,6 +388,7 @@ function encounterRowIncludedInPayload(en: EncounterRow): boolean {
     en.periodStart !== "" ||
     en.periodEnd !== "" ||
     en.practitionerIndex !== "" ||
+    en.serviceProviderOrganizationIndex !== "" ||
     en.legacyIdentifierSystem.trim() !== "" ||
     en.legacyIdentifierValue.trim() !== ""
   );
@@ -431,6 +480,41 @@ function EncounterSelect({
   );
 }
 
+function OrganizationSelect({
+  organizationRows,
+  value,
+  onChange,
+}: {
+  organizationRows: OrganizationRow[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const opts = organizationPayloadOptions(organizationRows);
+  if (opts.length === 0) {
+    return (
+      <div className="field" style={{ gridColumn: "1 / -1" }}>
+        <label>Service provider organization (optional)</label>
+        <p className="lead" style={{ margin: 0, fontSize: "0.9rem" }}>
+          Add organizations on the Organization tab (name required) to link this encounter to a saved organization.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="field" style={{ gridColumn: "1 / -1" }}>
+      <label>Service provider organization (optional)</label>
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— None —</option>
+        {opts.map((opt) => (
+          <option key={opt.index} value={String(opt.index)}>
+            {opt.label} (payload index {opt.index})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function PatientEntry() {
   const [family, setFamily] = useState("");
   const [given, setGiven] = useState("");
@@ -448,6 +532,7 @@ export default function PatientEntry() {
   const [identifierValue, setIdentifierValue] = useState("");
 
   const [practitionerRows, setPractitionerRows] = useState<PractitionerRow[]>([]);
+  const [organizationRows, setOrganizationRows] = useState<OrganizationRow[]>([]);
 
   const [labs, setLabs] = useState<LabRow[]>([emptyLab()]);
   const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReportRow[]>([]);
@@ -481,7 +566,7 @@ export default function PatientEntry() {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if (!raw) return;
       const d = JSON.parse(raw) as Record<string, unknown>;
-      if (d.v !== 1 && d.v !== 2) return;
+      if (d.v !== 1 && d.v !== 2 && d.v !== 3) return;
       const mt = d.activeMainTab;
       if (typeof mt === "string" && MAIN_TABS.some((t) => t.id === mt)) {
         setActiveMainTab(mt as MainTabId);
@@ -507,6 +592,7 @@ export default function PatientEntry() {
       if (s("identifierSystem") !== undefined) setIdentifierSystem(s("identifierSystem")!);
       if (s("identifierValue") !== undefined) setIdentifierValue(s("identifierValue")!);
       if (Array.isArray(d.practitionerRows)) setPractitionerRows(d.practitionerRows as PractitionerRow[]);
+      if (Array.isArray(d.organizationRows)) setOrganizationRows(d.organizationRows as OrganizationRow[]);
       if (Array.isArray(d.labs)) setLabs(d.labs as LabRow[]);
       if (Array.isArray(d.diagnosticReports)) setDiagnosticReports(d.diagnosticReports as DiagnosticReportRow[]);
       if (Array.isArray(d.observations)) setObservations(d.observations as ObsRow[]);
@@ -536,7 +622,7 @@ export default function PatientEntry() {
   function saveDraft() {
     try {
       const payload = {
-        v: 2 as const,
+        v: 3 as const,
         activeMainTab,
         editingPatientId,
         loadPatientIdInput,
@@ -556,6 +642,7 @@ export default function PatientEntry() {
         identifierSystem,
         identifierValue,
         practitionerRows,
+        organizationRows,
         labs,
         diagnosticReports,
         observations,
@@ -638,12 +725,43 @@ export default function PatientEntry() {
         }
       }
 
+      const orgList = (Array.isArray(p.organizations) ? p.organizations : []) as Record<string, unknown>[];
+      orgList.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+      const idToOrgPayloadIdx = new Map<string, number>();
+      {
+        let oidx = 0;
+        for (const o of orgList) {
+          const nm = typeof o.name === "string" ? o.name.trim() : "";
+          if (!nm) continue;
+          idToOrgPayloadIdx.set(String(o.id), oidx);
+          oidx++;
+        }
+      }
+
+      const orgRows: OrganizationRow[] = orgList.map((o) => ({
+        identifierSystem: typeof o.identifierSystem === "string" ? o.identifierSystem : "",
+        identifierValue: typeof o.identifierValue === "string" ? o.identifierValue : "",
+        active: o.active === false ? false : true,
+        typeText: typeof o.typeText === "string" ? o.typeText : "",
+        typeCode: typeof o.typeCode === "string" ? o.typeCode : "",
+        name: typeof o.name === "string" ? o.name : "",
+        description: typeof o.description === "string" ? o.description : "",
+        contactPhone: typeof o.contactPhone === "string" ? o.contactPhone : "",
+        contactEmail: typeof o.contactEmail === "string" ? o.contactEmail : "",
+        contactAddressLine: typeof o.contactAddressLine === "string" ? o.contactAddressLine : "",
+      }));
+
       const encList = (Array.isArray(p.encounters) ? p.encounters : []) as Record<string, unknown>[];
       encList.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
 
       const encRows: EncounterRow[] = encList.map((e) => {
         const pid = e.practitionerId != null ? String(e.practitionerId) : "";
         const pi = pid && idToPrPayloadIdx.has(pid) ? String(idToPrPayloadIdx.get(pid)) : "";
+        const ospid =
+          e.serviceProviderOrganizationId != null ? String(e.serviceProviderOrganizationId) : "";
+        const spi =
+          ospid && idToOrgPayloadIdx.has(ospid) ? String(idToOrgPayloadIdx.get(ospid)) : "";
         return {
           status: typeof e.status === "string" ? e.status : "",
           classCode: typeof e.classCode === "string" ? e.classCode : "",
@@ -651,6 +769,7 @@ export default function PatientEntry() {
           periodStart: isoToDatetimeLocal(e.periodStart as string | undefined),
           periodEnd: isoToDatetimeLocal(e.periodEnd as string | undefined),
           practitionerIndex: pi,
+          serviceProviderOrganizationIndex: spi,
           legacyIdentifierSystem:
             typeof e.legacyIdentifierSystem === "string" ? e.legacyIdentifierSystem : "",
           legacyIdentifierValue:
@@ -758,6 +877,7 @@ export default function PatientEntry() {
       );
 
       setEncounters(encRows);
+      setOrganizationRows(orgRows);
       setPractitionerRows(prRows);
 
       setCoverageRows(
@@ -918,6 +1038,20 @@ export default function PatientEntry() {
         identifierValue: identifierValue.trim() || undefined,
       },
       practitioners: practitionersPayload,
+      organizations: organizationRows
+        .filter((row) => organizationRowIncludedInPayload(row))
+        .map((row) => ({
+          identifierSystem: row.identifierSystem.trim() || undefined,
+          identifierValue: row.identifierValue.trim() || undefined,
+          active: row.active,
+          typeText: row.typeText.trim() || undefined,
+          typeCode: row.typeCode.trim() || undefined,
+          name: row.name.trim(),
+          description: row.description.trim() || undefined,
+          contactPhone: row.contactPhone.trim() || undefined,
+          contactEmail: row.contactEmail.trim() || undefined,
+          contactAddressLine: row.contactAddressLine.trim() || undefined,
+        })),
       labs: labs
         .filter((l) => l.code.trim())
         .map((l) => ({
@@ -988,6 +1122,10 @@ export default function PatientEntry() {
       encounters: encounters.filter(encounterRowIncludedInPayload).map((en) => {
         const pi =
           en.practitionerIndex === "" ? undefined : Number.parseInt(en.practitionerIndex, 10);
+        const spi =
+          en.serviceProviderOrganizationIndex === ""
+            ? undefined
+            : Number.parseInt(en.serviceProviderOrganizationIndex, 10);
         return {
           status: en.status.trim() || undefined,
           classCode: en.classCode.trim() || undefined,
@@ -995,6 +1133,8 @@ export default function PatientEntry() {
           periodStart: en.periodStart ? new Date(en.periodStart).toISOString() : undefined,
           periodEnd: en.periodEnd ? new Date(en.periodEnd).toISOString() : undefined,
           practitionerIndex: pi != null && !Number.isNaN(pi) && pi >= 0 ? pi : undefined,
+          serviceProviderOrganizationIndex:
+            spi != null && !Number.isNaN(spi) && spi >= 0 ? spi : undefined,
           legacyIdentifierSystem: en.legacyIdentifierSystem.trim() || undefined,
           legacyIdentifierValue: en.legacyIdentifierValue.trim() || undefined,
         };
@@ -1588,6 +1728,148 @@ export default function PatientEntry() {
 
       <div
         role="tabpanel"
+        id="pe-panel-organization"
+        aria-labelledby="pe-tab-organization"
+        hidden={activeMainTab !== "organization"}
+      >
+        <div className="card">
+          <h2>Organization (FHIR Organization)</h2>
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            Add care sites, departments, or teams linked to this patient. <strong>Name</strong> is required for each row you
+            want saved; empty-name rows are skipped. On the Encounter tab, choose <strong>Service provider organization</strong>{" "}
+            to set <code>Encounter.serviceProvider</code> (index matches saved organizations in order).
+          </p>
+          {organizationRows.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No organizations yet — use &quot;Add organization&quot; below.
+            </p>
+          )}
+          {organizationRows.map((row, i) => (
+            <div key={i} className="field-grid" style={{ marginBottom: "1rem" }}>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label className="pe-inline-check">
+                  <input
+                    type="checkbox"
+                    checked={row.active}
+                    onChange={(e) =>
+                      setOrganizationRows(
+                        organizationRows.map((r, j) => (j === i ? { ...r, active: e.target.checked } : r)),
+                      )
+                    }
+                  />
+                  Active (Organization.active)
+                </label>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Name (required to save row)</label>
+                <input
+                  value={row.name}
+                  onChange={(e) =>
+                    setOrganizationRows(organizationRows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))
+                  }
+                  placeholder="City General · Cardiology"
+                />
+              </div>
+              <div className="field">
+                <label>Type code (optional)</label>
+                <input
+                  value={row.typeCode}
+                  onChange={(e) =>
+                    setOrganizationRows(organizationRows.map((r, j) => (j === i ? { ...r, typeCode: e.target.value } : r)))
+                  }
+                  placeholder="prov, dept…"
+                />
+              </div>
+              <div className="field">
+                <label>Type display (optional)</label>
+                <input
+                  value={row.typeText}
+                  onChange={(e) =>
+                    setOrganizationRows(organizationRows.map((r, j) => (j === i ? { ...r, typeText: e.target.value } : r)))
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Description (optional)</label>
+                <input
+                  value={row.description}
+                  onChange={(e) =>
+                    setOrganizationRows(
+                      organizationRows.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Identifier system (URI)</label>
+                <input
+                  value={row.identifierSystem}
+                  onChange={(e) =>
+                    setOrganizationRows(
+                      organizationRows.map((r, j) => (j === i ? { ...r, identifierSystem: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Identifier value</label>
+                <input
+                  value={row.identifierValue}
+                  onChange={(e) =>
+                    setOrganizationRows(
+                      organizationRows.map((r, j) => (j === i ? { ...r, identifierValue: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Contact phone</label>
+                <input
+                  value={row.contactPhone}
+                  onChange={(e) =>
+                    setOrganizationRows(
+                      organizationRows.map((r, j) => (j === i ? { ...r, contactPhone: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Contact email</label>
+                <input
+                  type="email"
+                  value={row.contactEmail}
+                  onChange={(e) =>
+                    setOrganizationRows(
+                      organizationRows.map((r, j) => (j === i ? { ...r, contactEmail: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>Contact address line</label>
+                <input
+                  value={row.contactAddressLine}
+                  onChange={(e) =>
+                    setOrganizationRows(
+                      organizationRows.map((r, j) => (j === i ? { ...r, contactAddressLine: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setOrganizationRows([...organizationRows, emptyOrganization()])}
+          >
+            Add organization
+          </button>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
         id="pe-panel-diagnosticReport"
         aria-labelledby="pe-tab-diagnosticReport"
         hidden={activeMainTab !== "diagnosticReport"}
@@ -1949,7 +2231,8 @@ export default function PatientEntry() {
           <h2>Encounter (FHIR Encounter)</h2>
           <p className="lead" style={{ marginBottom: "1rem" }}>
             Class uses ActCode values (e.g. AMB ambulatory, EMER emergency). Participant links to a practitioner row from
-            this form (same order as saved practitioners — add them on the Practitioner tab first). Use{" "}
+            this form (same order as saved practitioners — add them on the Practitioner tab first). Service provider links to
+            an organization row (same order as saved organizations — add them on the Organization tab first). Use{" "}
             <strong>Legacy encounter identifier</strong> for the business id from a prior system; it is stored and exported
             to FHIR as <code>Encounter.identifier</code> and is never auto-generated.
           </p>
@@ -2070,6 +2353,15 @@ export default function PatientEntry() {
                   ))}
                 </select>
               </div>
+              <OrganizationSelect
+                organizationRows={organizationRows}
+                value={row.serviceProviderOrganizationIndex}
+                onChange={(v) =>
+                  setEncounters(
+                    encounters.map((r, j) => (j === i ? { ...r, serviceProviderOrganizationIndex: v } : r)),
+                  )
+                }
+              />
             </div>
           ))}
           <button type="button" className="btn btn-ghost" onClick={() => setEncounters([...encounters, emptyEncounter()])}>
