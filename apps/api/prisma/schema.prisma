@@ -48,6 +48,34 @@ model Patient {
   medicationStatements     MedicationStatement[]
   medications              Medication[]
   immunizations            Immunization[]
+  organizations            Organization[]
+}
+
+/// FHIR: Organization (patient-scoped for manual entry / export in this POC)
+model Organization {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  identifierSystem String?
+  identifierValue  String?
+  active           Boolean  @default(true)
+  /// CodeableConcept — display / text (e.g. prov, dept, team)
+  typeText         String?
+  typeCode         String?
+  /// Organization.name (FHIR); empty when row not yet filled
+  name             String   @default("")
+  description      String?
+
+  /// Contact: telecom + optional address line (maps to FHIR Organization.contact / telecom)
+  contactPhone       String?
+  contactEmail       String?
+  contactAddressLine String?
+
+  encountersAsServiceProvider Encounter[] @relation("EncounterServiceProviderOrganization")
 }
 
 /// FHIR: Practitioner (captured in context of this patient for export)
@@ -153,6 +181,10 @@ model Encounter {
   /// External / legacy business identifier from the source system (manual entry; not the internal UUID).
   legacyIdentifierSystem String?
   legacyIdentifierValue  String?
+
+  /// FHIR Encounter.serviceProvider → Organization
+  serviceProviderOrganizationId String?
+  serviceProviderOrganization     Organization? @relation("EncounterServiceProviderOrganization", fields: [serviceProviderOrganizationId], references: [id], onDelete: SetNull)
 
   practitionersWithContext Practitioner[] @relation("PractitionerContextEncounter")
   observations             Observation[]
