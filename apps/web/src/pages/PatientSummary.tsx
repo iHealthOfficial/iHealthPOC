@@ -1,9 +1,165 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 
-/** Full patient payload from GET /api/patients/:id (subset used in chunks 1–2). */
-type PatientDetail = {
+/** GET /api/patients/:id includes full clinical graph (Prisma JSON dates as ISO strings). */
+type PractitionerRef = {
+  id: string;
+  family: string | null;
+  given: string;
+};
+
+type OrganizationRef = {
+  id: string;
+  name: string;
+};
+
+type EncounterRow = {
+  id: string;
+  status: string | null;
+  classCode: string | null;
+  typeText: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  legacyIdentifierSystem: string | null;
+  legacyIdentifierValue: string | null;
+  practitioner: PractitionerRef | null;
+  serviceProviderOrganization: OrganizationRef | null;
+};
+
+type ObservationRow = {
+  id: string;
+  category: string;
+  code: string;
+  valueString: string | null;
+  valueQuantity: number | null;
+  valueQuantityUnit: string | null;
+  effectiveDateTime: string | null;
+};
+
+type ConditionRow = {
+  id: string;
+  clinicalStatus: string | null;
+  verificationStatus: string | null;
+  code: string;
+  onsetDateTime: string | null;
+  recordedDate: string | null;
+};
+
+type DiagnosticReportRow = {
+  id: string;
+  status: string;
+  code: string;
+  conclusion: string | null;
+  effectiveDateTime: string | null;
+  issued: string | null;
+};
+
+type ProcedureRow = {
+  id: string;
+  status: string | null;
+  code: string;
+  performedDateTime: string | null;
+  bodySite: string | null;
+};
+
+type AllergyRow = {
+  id: string;
+  clinicalStatus: string | null;
+  verificationStatus: string | null;
+  type: string | null;
+  category: string | null;
+  code: string;
+  reaction: string | null;
+  onsetDateTime: string | null;
+};
+
+type MedicationRequestRow = {
+  id: string;
+  status: string | null;
+  intent: string | null;
+  medicationCode: string;
+  dosageText: string | null;
+  authoredOn: string | null;
+  requesterText: string | null;
+};
+
+type MedicationAdminRow = {
+  id: string;
+  status: string | null;
+  medicationCode: string;
+  effectiveDateTime: string | null;
+  doseText: string | null;
+  routeText: string | null;
+};
+
+type MedicationDispenseRow = {
+  id: string;
+  status: string | null;
+  medicationCode: string;
+  whenHandedOver: string | null;
+  quantityText: string | null;
+  daysSupply: number | null;
+};
+
+type MedicationStatementRow = {
+  id: string;
+  status: string | null;
+  medicationCode: string;
+  effectiveDateTime: string | null;
+  dosageText: string | null;
+};
+
+type MedicationProductRow = {
+  id: string;
+  code: string;
+  status: string | null;
+  form: string | null;
+  strength: string | null;
+};
+
+type ImmunizationRow = {
+  id: string;
+  status: string | null;
+  vaccineCode: string;
+  occurrenceDateTime: string | null;
+  lotNumber: string | null;
+  manufacturerText: string | null;
+};
+
+type CoverageRow = {
+  id: string;
+  status: string | null;
+  insurerName: string | null;
+  planName: string | null;
+  subscriberId: string | null;
+  memberId: string | null;
+  relationshipText: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+};
+
+type FamilyConditionRow = { id: string; code: string; outcomeText: string | null };
+type FamilyProcedureRow = { id: string; code: string; outcomeText: string | null };
+
+type FamilyMemberHistoryRow = {
+  id: string;
+  identifierSystem: string | null;
+  identifierValue: string | null;
+  status: string | null;
+  dataAbsentReasonText: string | null;
+  date: string | null;
+  name: string | null;
+  relationshipText: string | null;
+  sex: string | null;
+  ageString: string | null;
+  deceasedBoolean: boolean | null;
+  deceasedDate: string | null;
+  conditions: FamilyConditionRow[];
+  procedures: FamilyProcedureRow[];
+};
+
+type PatientFull = {
   id: string;
   active: boolean;
   family: string | null;
@@ -20,7 +176,33 @@ type PatientDetail = {
   identifierSystem: string | null;
   identifierValue: string | null;
   updatedAt: string;
+  encounters: EncounterRow[];
+  observations: ObservationRow[];
+  conditions: ConditionRow[];
+  diagnosticReports: DiagnosticReportRow[];
+  procedures: ProcedureRow[];
+  allergyIntolerances: AllergyRow[];
+  medicationRequests: MedicationRequestRow[];
+  medicationAdministrations: MedicationAdminRow[];
+  medicationDispenses: MedicationDispenseRow[];
+  medicationStatements: MedicationStatementRow[];
+  medications: MedicationProductRow[];
+  immunizations: ImmunizationRow[];
+  coverages: CoverageRow[];
+  familyMemberHistories: FamilyMemberHistoryRow[];
 };
+
+/** Chunk 3: main read-only clinical tabs (labels + state). */
+const PS_MAIN_TABS = [
+  { id: "encounters" as const, label: "Encounters" },
+  { id: "clinical" as const, label: "Clinical overview" },
+  { id: "medications" as const, label: "Medications" },
+  { id: "insurance" as const, label: "Insurance" },
+  { id: "immunizations" as const, label: "Immunizations" },
+  { id: "family" as const, label: "Family history" },
+];
+
+type PsMainTabId = (typeof PS_MAIN_TABS)[number]["id"];
 
 function parseGivenNames(givenJson: string): string[] {
   try {
@@ -31,14 +213,22 @@ function parseGivenNames(givenJson: string): string[] {
   }
 }
 
-function displayName(p: PatientDetail): string {
+function practitionerDisplay(pr: PractitionerRef | null): string {
+  if (!pr) return "—";
+  const given = parseGivenNames(pr.given);
+  const g = given.join(" ");
+  if (g && pr.family) return `${g} ${pr.family}`.trim();
+  return g || pr.family || "—";
+}
+
+function displayName(p: Pick<PatientFull, "family" | "given">): string {
   const given = parseGivenNames(p.given);
   const g = given.join(" ");
   if (g && p.family) return `${g} ${p.family}`.trim();
   return g || p.family || "Unknown patient";
 }
 
-function patientInitials(p: PatientDetail): string {
+function patientInitials(p: Pick<PatientFull, "family" | "given">): string {
   const given = parseGivenNames(p.given);
   const g0 = given[0]?.trim() ?? "";
   const fam = p.family?.trim() ?? "";
@@ -61,11 +251,41 @@ function formatUpdatedAt(iso: string): string {
   return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function formatAddressLine(p: PatientDetail): string {
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatPeriod(start: string | null, end: string | null): string {
+  const a = formatDateTime(start);
+  const b = formatDateTime(end);
+  if (a === "—" && b === "—") return "—";
+  if (b === "—" || start === end) return a;
+  return `${a} → ${b}`;
+}
+
+function formatAddressLine(p: PatientFull): string {
   const parts = [p.addressLine, p.city, p.state, p.postalCode, p.country].filter(
     (x) => x && String(x).trim(),
   ) as string[];
   return parts.length ? parts.join(", ") : "—";
+}
+
+function observationValue(o: ObservationRow): string {
+  if (o.valueString?.trim()) return o.valueString.trim();
+  if (o.valueQuantity != null) {
+    const u = o.valueQuantityUnit?.trim() ? ` ${o.valueQuantityUnit.trim()}` : "";
+    return `${o.valueQuantity}${u}`;
+  }
+  return "—";
 }
 
 function isNotFoundError(message: string): boolean {
@@ -78,11 +298,25 @@ function isNotFoundError(message: string): boolean {
   }
 }
 
+function formatGender(code: string): string {
+  const c = code.toLowerCase();
+  if (c === "male") return "Male";
+  if (c === "female") return "Female";
+  if (c === "other") return "Other";
+  if (c === "unknown") return "Unknown";
+  return code;
+}
+
+function emptyArr<T>(x: T[] | undefined): T[] {
+  return Array.isArray(x) ? x : [];
+}
+
 export default function PatientSummary() {
   const { id } = useParams<{ id: string }>();
-  const [patient, setPatient] = useState<PatientDetail | null>(null);
+  const [patient, setPatient] = useState<PatientFull | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "notfound" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<PsMainTabId>("encounters");
 
   useEffect(() => {
     if (!id?.trim()) {
@@ -97,9 +331,29 @@ export default function PatientSummary() {
 
     void (async () => {
       try {
-        const p = await api<PatientDetail>(`/api/patients/${encodeURIComponent(id)}`);
+        const p = await api<PatientFull>(`/api/patients/${encodeURIComponent(id)}`);
         if (cancelled) return;
-        setPatient(p);
+        setPatient({
+          ...p,
+          encounters: emptyArr(p.encounters),
+          observations: emptyArr(p.observations),
+          conditions: emptyArr(p.conditions),
+          diagnosticReports: emptyArr(p.diagnosticReports),
+          procedures: emptyArr(p.procedures),
+          allergyIntolerances: emptyArr(p.allergyIntolerances),
+          medicationRequests: emptyArr(p.medicationRequests),
+          medicationAdministrations: emptyArr(p.medicationAdministrations),
+          medicationDispenses: emptyArr(p.medicationDispenses),
+          medicationStatements: emptyArr(p.medicationStatements),
+          medications: emptyArr(p.medications),
+          immunizations: emptyArr(p.immunizations),
+          coverages: emptyArr(p.coverages),
+          familyMemberHistories: emptyArr(p.familyMemberHistories).map((fh) => ({
+            ...fh,
+            conditions: emptyArr(fh.conditions),
+            procedures: emptyArr(fh.procedures),
+          })),
+        });
         setPhase("ready");
       } catch (e) {
         if (cancelled) return;
@@ -116,6 +370,24 @@ export default function PatientSummary() {
       cancelled = true;
     };
   }, [id]);
+
+  const sortedEncounters = useMemo(() => {
+    if (!patient?.encounters) return [];
+    return [...patient.encounters].sort((a, b) => {
+      const ta = a.periodStart ? new Date(a.periodStart).getTime() : 0;
+      const tb = b.periodStart ? new Date(b.periodStart).getTime() : 0;
+      return tb - ta;
+    });
+  }, [patient?.encounters]);
+
+  const labObs = useMemo(
+    () => patient?.observations.filter((o) => o.category === "laboratory") ?? [],
+    [patient?.observations],
+  );
+  const otherObs = useMemo(
+    () => patient?.observations.filter((o) => o.category !== "laboratory") ?? [],
+    [patient?.observations],
+  );
 
   if (phase === "loading") {
     return (
@@ -292,26 +564,547 @@ export default function PatientSummary() {
               </div>
             </div>
 
-            <p className="ps-chunk-placeholder">
-              Clinical sections (encounters, observations, medications, …) follow in later chunks.
-            </p>
+            {/* Chunk 3: main clinical tabs */}
+            <nav className="ps-main-tabs" aria-label="Clinical record sections">
+              {PS_MAIN_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`ps-main-tab ps-main-tab--${tab.id}${activeTab === tab.id ? " ps-main-tab--active" : ""}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-pressed={activeTab === tab.id}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            {/* Chunk 4: panels per tab */}
+            <div className="ps-panels">
+              {activeTab === "encounters" && (
+                <section className="ps-panel" aria-labelledby="ps-encounters-heading">
+                  <h2 id="ps-encounters-heading" className="ps-panel-title">
+                    Encounters
+                  </h2>
+                  {sortedEncounters.length === 0 ? (
+                    <p className="ps-panel-empty">No encounters recorded.</p>
+                  ) : (
+                    <div className="table-scroll ps-table-wrap">
+                      <table className="data-table ps-data-table">
+                        <thead>
+                          <tr>
+                            <th>Period</th>
+                            <th>Status</th>
+                            <th>Class</th>
+                            <th>Type</th>
+                            <th>Practitioner</th>
+                            <th>Service provider</th>
+                            <th>Legacy id</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedEncounters.map((row) => (
+                            <tr key={row.id}>
+                              <td className="cell-mono">{formatPeriod(row.periodStart, row.periodEnd)}</td>
+                              <td>{row.status?.trim() || "—"}</td>
+                              <td>{row.classCode?.trim() || "—"}</td>
+                              <td>{row.typeText?.trim() || "—"}</td>
+                              <td>{practitionerDisplay(row.practitioner)}</td>
+                              <td>{row.serviceProviderOrganization?.name?.trim() || "—"}</td>
+                              <td className="cell-mono">
+                                {row.legacyIdentifierValue?.trim()
+                                  ? [row.legacyIdentifierSystem, row.legacyIdentifierValue].filter(Boolean).join(" | ")
+                                  : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {activeTab === "clinical" && (
+                <section className="ps-panel ps-panel--clinical" aria-labelledby="ps-clinical-heading">
+                  <h2 id="ps-clinical-heading" className="visually-hidden">
+                    Clinical overview
+                  </h2>
+                  <div className="ps-clinical-grid">
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">Laboratory</h3>
+                      {labObs.length === 0 ? (
+                        <p className="ps-panel-empty">No laboratory results.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Code</th>
+                                <th>Value</th>
+                                <th>Effective</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {labObs.map((o) => (
+                                <tr key={o.id}>
+                                  <td>{o.code}</td>
+                                  <td className="cell-mono">{observationValue(o)}</td>
+                                  <td className="cell-mono">{formatDateTime(o.effectiveDateTime)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">Observations (non-lab)</h3>
+                      {otherObs.length === 0 ? (
+                        <p className="ps-panel-empty">No other observations.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Category</th>
+                                <th>Code</th>
+                                <th>Value</th>
+                                <th>Effective</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {otherObs.map((o) => (
+                                <tr key={o.id}>
+                                  <td>{o.category}</td>
+                                  <td>{o.code}</td>
+                                  <td className="cell-mono">{observationValue(o)}</td>
+                                  <td className="cell-mono">{formatDateTime(o.effectiveDateTime)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">Conditions</h3>
+                      {patient.conditions.length === 0 ? (
+                        <p className="ps-panel-empty">No conditions.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Code</th>
+                                <th>Clinical</th>
+                                <th>Recorded</th>
+                                <th>Onset</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.conditions.map((c) => (
+                                <tr key={c.id}>
+                                  <td>{c.code}</td>
+                                  <td>{c.clinicalStatus?.trim() || "—"}</td>
+                                  <td className="cell-mono">{formatDateTime(c.recordedDate)}</td>
+                                  <td className="cell-mono">{formatDateTime(c.onsetDateTime)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">Diagnostic reports</h3>
+                      {patient.diagnosticReports.length === 0 ? (
+                        <p className="ps-panel-empty">No diagnostic reports.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Code</th>
+                                <th>Conclusion</th>
+                                <th>Effective</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.diagnosticReports.map((dr) => (
+                                <tr key={dr.id}>
+                                  <td>{dr.code}</td>
+                                  <td>{dr.conclusion?.trim() || "—"}</td>
+                                  <td className="cell-mono">{formatDateTime(dr.effectiveDateTime)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">Procedures</h3>
+                      {patient.procedures.length === 0 ? (
+                        <p className="ps-panel-empty">No procedures.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Code</th>
+                                <th>Status</th>
+                                <th>Performed</th>
+                                <th>Body site</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.procedures.map((pr) => (
+                                <tr key={pr.id}>
+                                  <td>{pr.code}</td>
+                                  <td>{pr.status?.trim() || "—"}</td>
+                                  <td className="cell-mono">{formatDateTime(pr.performedDateTime)}</td>
+                                  <td>{pr.bodySite?.trim() || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">Allergies</h3>
+                      {patient.allergyIntolerances.length === 0 ? (
+                        <p className="ps-panel-empty">No allergy intolerances.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Code</th>
+                                <th>Clinical</th>
+                                <th>Reaction</th>
+                                <th>Onset</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.allergyIntolerances.map((a) => (
+                                <tr key={a.id}>
+                                  <td>{a.code}</td>
+                                  <td>{a.clinicalStatus?.trim() || "—"}</td>
+                                  <td>{a.reaction?.trim() || "—"}</td>
+                                  <td className="cell-mono">{formatDateTime(a.onsetDateTime)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {activeTab === "medications" && (
+                <section className="ps-panel" aria-labelledby="ps-med-heading">
+                  <h2 id="ps-med-heading" className="ps-panel-title">
+                    Medications
+                  </h2>
+                  <div className="ps-med-stack">
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">MedicationRequest</h3>
+                      {patient.medicationRequests.length === 0 ? (
+                        <p className="ps-panel-empty">None.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Medication</th>
+                                <th>Status</th>
+                                <th>Dosage</th>
+                                <th>Authored</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.medicationRequests.map((m) => (
+                                <tr key={m.id}>
+                                  <td>{m.medicationCode}</td>
+                                  <td>{m.status?.trim() || "—"}</td>
+                                  <td>{m.dosageText?.trim() || "—"}</td>
+                                  <td className="cell-mono">{formatDateTime(m.authoredOn)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">MedicationAdministration</h3>
+                      {patient.medicationAdministrations.length === 0 ? (
+                        <p className="ps-panel-empty">None.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Medication</th>
+                                <th>Effective</th>
+                                <th>Dose</th>
+                                <th>Route</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.medicationAdministrations.map((m) => (
+                                <tr key={m.id}>
+                                  <td>{m.medicationCode}</td>
+                                  <td className="cell-mono">{formatDateTime(m.effectiveDateTime)}</td>
+                                  <td>{m.doseText?.trim() || "—"}</td>
+                                  <td>{m.routeText?.trim() || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">MedicationDispense</h3>
+                      {patient.medicationDispenses.length === 0 ? (
+                        <p className="ps-panel-empty">None.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Medication</th>
+                                <th>When handed over</th>
+                                <th>Quantity</th>
+                                <th>Days supply</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.medicationDispenses.map((m) => (
+                                <tr key={m.id}>
+                                  <td>{m.medicationCode}</td>
+                                  <td className="cell-mono">{formatDateTime(m.whenHandedOver)}</td>
+                                  <td>{m.quantityText?.trim() || "—"}</td>
+                                  <td>{m.daysSupply != null ? String(m.daysSupply) : "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">MedicationStatement</h3>
+                      {patient.medicationStatements.length === 0 ? (
+                        <p className="ps-panel-empty">None.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Medication</th>
+                                <th>Status</th>
+                                <th>Effective</th>
+                                <th>Dosage</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.medicationStatements.map((m) => (
+                                <tr key={m.id}>
+                                  <td>{m.medicationCode}</td>
+                                  <td>{m.status?.trim() || "—"}</td>
+                                  <td className="cell-mono">{formatDateTime(m.effectiveDateTime)}</td>
+                                  <td>{m.dosageText?.trim() || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ps-clinical-card">
+                      <h3 className="ps-clinical-card-title">Medication (product)</h3>
+                      {patient.medications.length === 0 ? (
+                        <p className="ps-panel-empty">None.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Code</th>
+                                <th>Form</th>
+                                <th>Strength</th>
+                                <th>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.medications.map((m) => (
+                                <tr key={m.id}>
+                                  <td>{m.code}</td>
+                                  <td>{m.form?.trim() || "—"}</td>
+                                  <td>{m.strength?.trim() || "—"}</td>
+                                  <td>{m.status?.trim() || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {activeTab === "insurance" && (
+                <section className="ps-panel" aria-labelledby="ps-cov-heading">
+                  <h2 id="ps-cov-heading" className="ps-panel-title">
+                    Insurance & coverage
+                  </h2>
+                  {patient.coverages.length === 0 ? (
+                    <p className="ps-panel-empty">No coverage rows.</p>
+                  ) : (
+                    <div className="table-scroll ps-table-wrap">
+                      <table className="data-table ps-data-table">
+                        <thead>
+                          <tr>
+                            <th>Insurer</th>
+                            <th>Plan</th>
+                            <th>Subscriber</th>
+                            <th>Member</th>
+                            <th>Period</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {patient.coverages.map((c) => (
+                            <tr key={c.id}>
+                              <td>{c.insurerName?.trim() || "—"}</td>
+                              <td>{c.planName?.trim() || "—"}</td>
+                              <td className="cell-mono">{c.subscriberId?.trim() || "—"}</td>
+                              <td className="cell-mono">{c.memberId?.trim() || "—"}</td>
+                              <td className="cell-mono">
+                                {formatPeriod(c.periodStart, c.periodEnd)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {activeTab === "immunizations" && (
+                <section className="ps-panel" aria-labelledby="ps-imm-heading">
+                  <h2 id="ps-imm-heading" className="ps-panel-title">
+                    Immunizations
+                  </h2>
+                  {patient.immunizations.length === 0 ? (
+                    <p className="ps-panel-empty">No immunizations.</p>
+                  ) : (
+                    <div className="table-scroll ps-table-wrap">
+                      <table className="data-table ps-data-table">
+                        <thead>
+                          <tr>
+                            <th>Vaccine</th>
+                            <th>Occurrence</th>
+                            <th>Lot</th>
+                            <th>Manufacturer</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {patient.immunizations.map((im) => (
+                            <tr key={im.id}>
+                              <td>{im.vaccineCode}</td>
+                              <td className="cell-mono">{formatDateTime(im.occurrenceDateTime)}</td>
+                              <td>{im.lotNumber?.trim() || "—"}</td>
+                              <td>{im.manufacturerText?.trim() || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {activeTab === "family" && (
+                <section className="ps-panel" aria-labelledby="ps-fmh-heading">
+                  <h2 id="ps-fmh-heading" className="ps-panel-title">
+                    Family history
+                  </h2>
+                  {patient.familyMemberHistories.length === 0 ? (
+                    <p className="ps-panel-empty">No family member history rows.</p>
+                  ) : (
+                    <ul className="ps-fmh-list">
+                      {patient.familyMemberHistories.map((fh) => (
+                        <li key={fh.id} className="ps-fmh-card">
+                          <div className="ps-fmh-head">
+                            <span className="ps-fmh-name">{fh.name?.trim() || "Relative"}</span>
+                            {fh.relationshipText?.trim() && (
+                              <span className="ps-fmh-rel">{fh.relationshipText.trim()}</span>
+                            )}
+                          </div>
+                          <dl className="ps-fmh-dl">
+                            {fh.date && (
+                              <>
+                                <dt>Date</dt>
+                                <dd>{formatDateTime(fh.date)}</dd>
+                              </>
+                            )}
+                            {fh.sex?.trim() && (
+                              <>
+                                <dt>Sex</dt>
+                                <dd>{fh.sex}</dd>
+                              </>
+                            )}
+                            {fh.ageString?.trim() && (
+                              <>
+                                <dt>Age</dt>
+                                <dd>{fh.ageString}</dd>
+                              </>
+                            )}
+                          </dl>
+                          {fh.conditions.length > 0 && (
+                            <div className="ps-fmh-sub">
+                              <div className="ps-fmh-subtitle">Conditions</div>
+                              <ul>
+                                {fh.conditions.map((c) => (
+                                  <li key={c.id}>{c.code}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {fh.procedures.length > 0 && (
+                            <div className="ps-fmh-sub">
+                              <div className="ps-fmh-subtitle">Procedures</div>
+                              <ul>
+                                {fh.procedures.map((p) => (
+                                  <li key={p.id}>{p.code}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+            </div>
+
             <p className="ps-nav-links">
               <Link to="/patients">Patient Directory</Link>
               {" · "}
-              <Link to={`/patient`}>Manual Patient Entry</Link>
+              <Link to="/patient">Manual Patient Entry</Link>
             </p>
           </div>
         </div>
       </div>
     </div>
   );
-}
-
-function formatGender(code: string): string {
-  const c = code.toLowerCase();
-  if (c === "male") return "Male";
-  if (c === "female") return "Female";
-  if (c === "other") return "Other";
-  if (c === "unknown") return "Unknown";
-  return code;
 }
