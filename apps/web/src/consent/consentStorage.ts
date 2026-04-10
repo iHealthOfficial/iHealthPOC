@@ -10,6 +10,8 @@ const STORAGE_VERSION = 1;
 export type ConsentStoredPayload = {
   version: number;
   scopes: Record<ConsentResourceType, boolean>;
+  /** ISO timestamp when preferences were last saved (chunk 4). */
+  savedAt?: string;
 };
 
 function defaultScopes(): Record<ConsentResourceType, boolean> {
@@ -42,8 +44,21 @@ export function saveConsentScopes(scopes: Record<ConsentResourceType, boolean>):
   const payload: ConsentStoredPayload = {
     version: STORAGE_VERSION,
     scopes: { ...scopes },
+    savedAt: new Date().toISOString(),
   };
   localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(payload));
+}
+
+/** Last save time from stored payload, if any. */
+export function loadConsentSavedAt(): string | null {
+  try {
+    const raw = localStorage.getItem(CONSENT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ConsentStoredPayload>;
+    return typeof parsed.savedAt === "string" ? parsed.savedAt : null;
+  } catch {
+    return null;
+  }
 }
 
 export function countPermitted(scopes: Record<ConsentResourceType, boolean>): number {

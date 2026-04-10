@@ -8,29 +8,116 @@ import {
 import {
   countPermitted,
   countRestricted,
+  loadConsentSavedAt,
   loadConsentScopes,
   saveConsentScopes,
 } from "../consent/consentStorage";
+
+const DEMO_ACCESS_EVENTS = 24;
+
+const PENDING_REQUESTS = [
+  {
+    id: "p1",
+    variant: "amber" as const,
+    title: "Apollo Research Institute — Clinical study access",
+    sub: "Requested by Dr. Sunita Iyer · 02 Apr 2026 · Expires if not acted on by 16 Apr 2026",
+    scopes: ["Observation", "DiagnosticReport", "Condition", "MedicationRequest"] as const,
+  },
+  {
+    id: "p2",
+    variant: "purple" as const,
+    title: "Star Health Insurance — Annual claim verification",
+    sub: "Requested by insurer portal · 01 Apr 2026 · One-time read access",
+    scopes: ["Encounter", "Procedure", "MedicationAdministration"] as const,
+  },
+] as const;
+
+const ACCESS_HISTORY_ROWS = [
+  {
+    who: "Dr. Priya Nair",
+    org: "Apollo Hospitals",
+    initials: "PN",
+    grad: "linear-gradient(135deg,#9FE1CB,#0F6E56)",
+    scopes: ["Observation", "MedicationRequest"],
+    purpose: "Treatment review",
+    when: "01 Apr 2026, 10:42",
+    status: "ok" as const,
+  },
+  {
+    who: "Dr. Rohan Mehta",
+    org: "Fortis Noida",
+    initials: "RM",
+    grad: "linear-gradient(135deg,#B5D4F4,#185FA5)",
+    scopes: ["DiagnosticReport", "Procedure", "Encounter"],
+    purpose: "Post-procedure review",
+    when: "31 Mar 2026, 15:18",
+    status: "ok" as const,
+  },
+  {
+    who: "Apollo Pharmacy",
+    org: "Dispensing system",
+    initials: "AP",
+    grad: "linear-gradient(135deg,#FAC775,#854F0B)",
+    scopes: ["MedicationDispense", "AllergyIntolerance"],
+    purpose: "Dispensing check",
+    when: "28 Mar 2026, 09:05",
+    status: "ok" as const,
+  },
+  {
+    who: "Star Health Portal",
+    org: "Insurance system",
+    initials: "SH",
+    grad: "linear-gradient(135deg,#AFA9EC,#534AB7)",
+    scopes: ["Observation"],
+    purpose: "Claim verification",
+    when: "25 Mar 2026, 14:30",
+    status: "blocked" as const,
+  },
+] as const;
 
 function useToast() {
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
   useEffect(() => {
     if (!toast) return;
-    const id = window.setTimeout(() => setToast(null), 2800);
-    return () => window.clearTimeout(id);
+    const tid = window.setTimeout(() => setToast(null), 2800);
+    return () => window.clearTimeout(tid);
   }, [toast]);
   return { toast, showToast: setToast };
 }
 
+function formatSavedAt(iso: string | null): string {
+  if (!iso) return "Not saved yet";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Not saved yet";
+  return d.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function ConsentPortal() {
   const [scopes, setScopes] = useState<Record<ConsentResourceType, boolean>>(loadConsentScopes);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => loadConsentSavedAt());
   const [auditOpen, setAuditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState<string | null>(null);
+  const [exportFmt, setExportFmt] = useState<"fhir" | "pdf">("fhir");
+  const [pendingIds, setPendingIds] = useState<Set<string>>(
+    () => new Set(PENDING_REQUESTS.map((p) => p.id)),
+  );
   const { toast, showToast } = useToast();
 
   const permitted = useMemo(() => countPermitted(scopes), [scopes]);
   const restricted = useMemo(() => countRestricted(scopes), [scopes]);
   const total = CONSENT_RESOURCE_TYPES.length;
+
+  const permittedLabels = useMemo(
+    () => CONSENT_RESOURCE_TYPES.filter((t) => scopes[t]).map((t) => CONSENT_RESOURCE_META[t].title),
+    [scopes],
+  );
 
   const setType = useCallback((t: ConsentResourceType, value: boolean) => {
     setScopes((s) => ({ ...s, [t]: value }));
@@ -48,8 +135,29 @@ export default function ConsentPortal() {
 
   const handleSave = useCallback(() => {
     saveConsentScopes(scopes);
+    const at = loadConsentSavedAt();
+    setLastSavedAt(at);
     showToast({ msg: "Consent preferences saved. Patient summary will reflect these choices.", kind: "ok" });
   }, [scopes, showToast]);
+
+  const dismissPending = useCallback(
+    (id: string, approved: boolean) => {
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      showToast({
+        msg: approved
+          ? "Request approved (demo — not sent to a server)."
+          : "Request denied (demo — not sent to a server).",
+        kind: approved ? "ok" : "err",
+      });
+    },
+    [showToast],
+  );
+
+  const pendingCount = pendingIds.size;
 
   return (
     <div className="consent-portal-app">
@@ -110,7 +218,7 @@ export default function ConsentPortal() {
               </svg>
             </div>
             <div>
-              <div className="cp-summary-num">0</div>
+              <div className="cp-summary-num">{pendingCount}</div>
               <div className="cp-summary-label">Pending requests</div>
             </div>
           </div>
@@ -135,8 +243,8 @@ export default function ConsentPortal() {
               </svg>
             </div>
             <div>
-              <div className="cp-summary-num">{total}</div>
-              <div className="cp-summary-label">Total resource types</div>
+              <div className="cp-summary-num">{DEMO_ACCESS_EVENTS}</div>
+              <div className="cp-summary-label">Data access events (demo)</div>
             </div>
           </div>
         </div>
@@ -149,9 +257,109 @@ export default function ConsentPortal() {
           </svg>
           <div className="cp-info-banner-text">
             <strong>Preferences are stored in this browser only.</strong> Use &quot;Save&quot; to persist your
-            choices. The patient summary view will only show sections for resource types you permit. This demo
-            does not sync to a server.
+            choices. The patient summary view will only show sections for resource types you permit. Pending
+            requests and access history below are <strong>illustrative</strong> for this demo.
           </div>
+        </div>
+
+        {/* Chunk 4: pending requests */}
+        {PENDING_REQUESTS.some((p) => pendingIds.has(p.id)) && (
+          <>
+            <div className="cp-section-row">
+              <div className="cp-section-icon cp-section-icon--amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#854F0B" strokeWidth="1.8">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <span className="cp-section-title">Pending requests</span>
+              <div className="cp-section-line" />
+              <span className="cp-badge cp-badge-amber cp-badge-inline">{pendingCount} awaiting review</span>
+            </div>
+
+            {PENDING_REQUESTS.filter((p) => pendingIds.has(p.id)).map((p) => (
+              <div
+                key={p.id}
+                className={`cp-pending-card${p.variant === "purple" ? " cp-pending-card--purple" : ""}`}
+              >
+                <div className={`cp-pending-icon${p.variant === "purple" ? " cp-pending-icon--purple" : ""}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M9 9h6M9 12h6M9 15h4" />
+                  </svg>
+                </div>
+                <div className="cp-pending-body">
+                  <div className="cp-pending-title">{p.title}</div>
+                  <div className="cp-pending-sub">{p.sub}</div>
+                  <div className="cp-pending-scope">
+                    {p.scopes.map((s) => (
+                      <span key={s} className="cp-pending-scope-tag">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="cp-pending-actions">
+                    <button
+                      type="button"
+                      className="cp-btn cp-btn-success cp-btn-sm"
+                      onClick={() => dismissPending(p.id, true)}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="cp-btn cp-btn-danger cp-btn-sm"
+                      onClick={() => dismissPending(p.id, false)}
+                    >
+                      Deny
+                    </button>
+                    {p.id === "p1" && (
+                      <button
+                        type="button"
+                        className="cp-btn cp-btn-outline cp-btn-sm"
+                        onClick={() => setDetailOpen("p1")}
+                      >
+                        View details
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* Chunk 4: active selection snapshot */}
+        <div className="cp-section-row">
+          <div className="cp-section-icon cp-section-icon--green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <polyline points="9 12 11 14 15 10" />
+            </svg>
+          </div>
+          <span className="cp-section-title">Your portal selection</span>
+          <div className="cp-section-line" />
+        </div>
+
+        <div className="cp-active-card">
+          <div className="cp-active-card-head">
+            <span className="cp-badge cp-badge-green">
+              <span className="cp-badge-dot" />
+              {permitted} of {total} types permitted
+            </span>
+            <span className="cp-active-saved">Last saved: {formatSavedAt(lastSavedAt)}</span>
+          </div>
+          <p className="cp-active-lead">
+            Resource toggles below control the live patient summary. This summary lists permitted categories only.
+          </p>
+          <ul className="cp-active-list">
+            {permittedLabels.slice(0, 8).map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+            {permittedLabels.length > 8 && <li>…and {permittedLabels.length - 8} more</li>}
+            {permittedLabels.length === 0 && <li className="cp-active-empty">No types permitted — use toggles below.</li>}
+          </ul>
         </div>
 
         <div className="cp-section-row">
@@ -255,17 +463,121 @@ export default function ConsentPortal() {
           ))}
         </div>
 
+        {/* Chunk 4: access history table */}
+        <div className="cp-section-row">
+          <div className="cp-section-icon cp-section-icon--blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </div>
+          <span className="cp-section-title">Data access history (demo)</span>
+          <div className="cp-section-line" />
+        </div>
+
+        <div className="cp-history-card">
+          <div className="cp-history-scroll">
+            <table className="cp-history-table">
+              <thead>
+                <tr>
+                  <th>Accessor</th>
+                  <th>Resources accessed</th>
+                  <th>Purpose</th>
+                  <th>Date &amp; time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ACCESS_HISTORY_ROWS.map((row, i) => (
+                  <tr key={i}>
+                    <td>
+                      <div className="cp-requester-cell">
+                        <div className="cp-requester-avatar" style={{ background: row.grad }}>
+                          {row.initials}
+                        </div>
+                        <div>
+                          <div className="cp-requester-name">{row.who}</div>
+                          <div className="cp-requester-org">{row.org}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cp-scope-tags">
+                        {row.scopes.map((s) => (
+                          <span key={s} className="cp-scope-tag">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>{row.purpose}</td>
+                    <td>{row.when}</td>
+                    <td>
+                      {row.status === "ok" ? (
+                        <span className="cp-badge cp-badge-green">Permitted</span>
+                      ) : (
+                        <span className="cp-badge cp-badge-red">Blocked</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div className="cp-footer-note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
           <div>
-            Consent choices apply to how data is shown in this application. They do not replace legal{" "}
-            <code>Consent</code> resources or institutional policies. For production use, connect this flow to your
-            FHIR Consent store and identity provider.
+            Consent choices here control how data is shown in this application. In production, decisions would be
+            logged as FHIR <code>Consent</code> resources and audited under applicable law (e.g. DPDP Act 2023).
+            Revoking display consent in this demo does not delete server data. Connect to your identity provider and
+            FHIR Consent store for a full solution.
           </div>
         </div>
       </div>
+
+      {detailOpen === "p1" && (
+        <div
+          className="cp-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Request details"
+          onClick={(e) => e.target === e.currentTarget && setDetailOpen(null)}
+        >
+          <div className="cp-modal">
+            <div className="cp-modal-header">
+              <h2 className="cp-modal-title">Research access request</h2>
+              <button type="button" className="cp-modal-close" onClick={() => setDetailOpen(null)} aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="cp-modal-body">
+              <p className="cp-modal-lead">
+                This request is for participation in the <strong>CARDIOFIT-2026</strong> observational study. No
+                interventions are involved. Demo only — not a real study enrollment.
+              </p>
+              <p className="cp-modal-scope-heading">Resources requested</p>
+              <ul className="cp-modal-detail-list">
+                <li>Observation — vitals and lab values</li>
+                <li>DiagnosticReport — ECG, lipid panel</li>
+                <li>Condition — active diagnoses</li>
+                <li>MedicationRequest — active prescriptions</li>
+              </ul>
+            </div>
+            <div className="cp-modal-footer">
+              <button type="button" className="cp-btn cp-btn-outline" onClick={() => setDetailOpen(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {auditOpen && (
         <div
@@ -275,7 +587,7 @@ export default function ConsentPortal() {
           aria-label="Audit log"
           onClick={(e) => e.target === e.currentTarget && setAuditOpen(false)}
         >
-          <div className="cp-modal">
+          <div className="cp-modal cp-modal--wide">
             <div className="cp-modal-header">
               <h2 className="cp-modal-title">Consent audit log</h2>
               <button type="button" className="cp-modal-close" onClick={() => setAuditOpen(false)} aria-label="Close">
@@ -285,15 +597,48 @@ export default function ConsentPortal() {
                 </svg>
               </button>
             </div>
-            <div className="cp-modal-body">
-              <p className="cp-modal-lead">
-                A full audit trail would list each change with actor, time, and scope. This demo shows a static
-                preview only.
-              </p>
-              <ul className="cp-audit-list">
-                <li>Portal preferences updated (browser storage)</li>
-                <li>Patient summary reflects saved consent scopes</li>
-              </ul>
+            <div className="cp-modal-body cp-modal-body--flush">
+              <div className="cp-audit-timeline">
+                <div className="cp-audit-entry">
+                  <div className="cp-audit-dot-col">
+                    <div className="cp-audit-dot" style={{ background: "#3b6d11" }} />
+                    <div className="cp-audit-line" />
+                  </div>
+                  <div>
+                    <div className="cp-audit-action">Preferences saved (browser storage)</div>
+                    <div className="cp-audit-meta">Updates patient summary visibility · {formatSavedAt(lastSavedAt)}</div>
+                  </div>
+                </div>
+                <div className="cp-audit-entry">
+                  <div className="cp-audit-dot-col">
+                    <div className="cp-audit-dot" style={{ background: "#854f0b" }} />
+                    <div className="cp-audit-line" />
+                  </div>
+                  <div>
+                    <div className="cp-audit-action">Pending request received (demo)</div>
+                    <div className="cp-audit-meta">Illustrative · not sent to a backend</div>
+                  </div>
+                </div>
+                <div className="cp-audit-entry">
+                  <div className="cp-audit-dot-col">
+                    <div className="cp-audit-dot" style={{ background: "#185fa5" }} />
+                    <div className="cp-audit-line" />
+                  </div>
+                  <div>
+                    <div className="cp-audit-action">Consent portal opened</div>
+                    <div className="cp-audit-meta">This browser session</div>
+                  </div>
+                </div>
+                <div className="cp-audit-entry">
+                  <div className="cp-audit-dot-col">
+                    <div className="cp-audit-dot" style={{ background: "#a32d2d" }} />
+                  </div>
+                  <div>
+                    <div className="cp-audit-action">Access blocked (example)</div>
+                    <div className="cp-audit-meta">When consent does not cover a requested resource type</div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="cp-modal-footer">
               <button type="button" className="cp-btn cp-btn-primary" onClick={() => setAuditOpen(false)}>
@@ -324,17 +669,52 @@ export default function ConsentPortal() {
             </div>
             <div className="cp-modal-body">
               <p className="cp-modal-lead">
-                Use <Link to="/patients">Patient Directory</Link> → <strong>View</strong> on a patient, then open{" "}
-                <strong>FHIR bundle</strong> for a machine-readable export. PDF summary is not implemented in this
-                demo.
+                Choose a format. FHIR export uses the same bundle as the patient summary screen.
               </p>
+              <div className="cp-export-options" role="radiogroup" aria-label="Export format">
+                <label className={`cp-export-option ${exportFmt === "fhir" ? "cp-export-option--selected" : ""}`}>
+                  <input
+                    type="radio"
+                    name="exportfmt"
+                    checked={exportFmt === "fhir"}
+                    onChange={() => setExportFmt("fhir")}
+                  />
+                  <div>
+                    <div className="cp-export-option-title">FHIR Bundle (JSON)</div>
+                    <div className="cp-export-option-sub">Machine-readable · open from Patient Directory → View → FHIR bundle</div>
+                  </div>
+                </label>
+                <label className={`cp-export-option ${exportFmt === "pdf" ? "cp-export-option--selected" : ""}`}>
+                  <input
+                    type="radio"
+                    name="exportfmt"
+                    checked={exportFmt === "pdf"}
+                    onChange={() => setExportFmt("pdf")}
+                  />
+                  <div>
+                    <div className="cp-export-option-title">PDF summary report</div>
+                    <div className="cp-export-option-sub">Not implemented in this demo</div>
+                  </div>
+                </label>
+              </div>
             </div>
             <div className="cp-modal-footer">
               <button type="button" className="cp-btn cp-btn-outline" onClick={() => setExportOpen(false)}>
                 Cancel
               </button>
-              <button type="button" className="cp-btn cp-btn-primary" onClick={() => setExportOpen(false)}>
-                Done
+              <button
+                type="button"
+                className="cp-btn cp-btn-primary"
+                onClick={() => {
+                  setExportOpen(false);
+                  if (exportFmt === "fhir") {
+                    showToast({ msg: "Open a patient from the directory, then use “FHIR bundle”.", kind: "ok" });
+                  } else {
+                    showToast({ msg: "PDF export is not available in this demo.", kind: "err" });
+                  }
+                }}
+              >
+                Continue
               </button>
             </div>
           </div>
