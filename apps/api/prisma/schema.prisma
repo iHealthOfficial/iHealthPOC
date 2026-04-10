@@ -49,6 +49,67 @@ model Patient {
   medications              Medication[]
   immunizations            Immunization[]
   organizations            Organization[]
+  familyMemberHistories    FamilyMemberHistory[]
+}
+
+/// FHIR: FamilyMemberHistory — subject is always the related Patient (this record)
+model FamilyMemberHistory {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  identifierSystem String?
+  identifierValue  String?
+  /// partial | completed | entered-in-error | health-unknown
+  status           String?
+  dataAbsentReasonText String?
+  dataAbsentReasonCode String?
+  date             DateTime?
+  name             String?
+  relationshipText String?
+  relationshipCode String?
+  sex              String?
+  ageString        String?
+  deceasedBoolean  Boolean?
+  deceasedDate     DateTime?
+  reasonText       String?
+  reasonCode       String?
+
+  conditions FamilyMemberHistoryCondition[]
+  procedures FamilyMemberHistoryProcedure[]
+}
+
+/// FamilyMemberHistory.condition — code, outcome, contributedToDeath
+model FamilyMemberHistoryCondition {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  familyMemberHistoryId String
+  familyMemberHistory   FamilyMemberHistory @relation(fields: [familyMemberHistoryId], references: [id], onDelete: Cascade)
+
+  code               String
+  outcomeText        String?
+  outcomeCode        String?
+  contributedToDeath   Boolean?
+}
+
+/// FamilyMemberHistory.procedure — code, outcome, contributedToDeath
+model FamilyMemberHistoryProcedure {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  familyMemberHistoryId String
+  familyMemberHistory   FamilyMemberHistory @relation(fields: [familyMemberHistoryId], references: [id], onDelete: Cascade)
+
+  code               String
+  outcomeText        String?
+  outcomeCode        String?
+  contributedToDeath   Boolean?
 }
 
 /// FHIR: Organization (patient-scoped for manual entry / export in this POC)
