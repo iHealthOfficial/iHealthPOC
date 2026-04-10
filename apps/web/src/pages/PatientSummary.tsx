@@ -148,13 +148,17 @@ type FamilyMemberHistoryRow = {
   identifierValue: string | null;
   status: string | null;
   dataAbsentReasonText: string | null;
+  dataAbsentReasonCode: string | null;
   date: string | null;
   name: string | null;
   relationshipText: string | null;
+  relationshipCode: string | null;
   sex: string | null;
   ageString: string | null;
   deceasedBoolean: boolean | null;
   deceasedDate: string | null;
+  reasonText: string | null;
+  reasonCode: string | null;
   conditions: FamilyConditionRow[];
   procedures: FamilyProcedureRow[];
 };
@@ -196,13 +200,52 @@ type PatientFull = {
 const PS_MAIN_TABS = [
   { id: "encounters" as const, label: "Encounters" },
   { id: "clinical" as const, label: "Clinical overview" },
-  { id: "medications" as const, label: "Medications" },
+  { id: "medications" as const, label: "Medications & vaccines" },
   { id: "insurance" as const, label: "Insurance" },
-  { id: "immunizations" as const, label: "Immunizations" },
   { id: "family" as const, label: "Family history" },
-];
+] as const;
 
 type PsMainTabId = (typeof PS_MAIN_TABS)[number]["id"];
+
+/** Chunk 5: medication / vaccine sub-tabs (aligned with Manual Patient Entry). */
+const PS_MED_SUB_TABS = [
+  { id: "request" as const, label: "MedicationRequest" },
+  { id: "administration" as const, label: "MedicationAdministration" },
+  { id: "dispense" as const, label: "MedicationDispense" },
+  { id: "statement" as const, label: "MedicationStatement" },
+  { id: "medication" as const, label: "Medication" },
+  { id: "immunization" as const, label: "Immunization" },
+] as const;
+
+type PsMedSubTabId = (typeof PS_MED_SUB_TABS)[number]["id"];
+
+function mainTabCount(p: PatientFull, tab: PsMainTabId): number {
+  switch (tab) {
+    case "encounters":
+      return p.encounters.length;
+    case "clinical":
+      return (
+        p.observations.length +
+        p.conditions.length +
+        p.diagnosticReports.length +
+        p.procedures.length +
+        p.allergyIntolerances.length
+      );
+    case "medications":
+      return (
+        p.medicationRequests.length +
+        p.medicationAdministrations.length +
+        p.medicationDispenses.length +
+        p.medicationStatements.length +
+        p.medications.length +
+        p.immunizations.length
+      );
+    case "insurance":
+      return p.coverages.length;
+    case "family":
+      return p.familyMemberHistories.length;
+  }
+}
 
 function parseGivenNames(givenJson: string): string[] {
   try {
@@ -317,6 +360,10 @@ export default function PatientSummary() {
   const [phase, setPhase] = useState<"loading" | "ready" | "notfound" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [activeTab, setActiveTab] = useState<PsMainTabId>("encounters");
+  const [medSubTab, setMedSubTab] = useState<PsMedSubTabId>("request");
+  const [fhirOpen, setFhirOpen] = useState(false);
+  const [fhirJson, setFhirJson] = useState("");
+  const [fhirLoading, setFhirLoading] = useState(false);
 
   useEffect(() => {
     if (!id?.trim()) {
@@ -388,6 +435,21 @@ export default function PatientSummary() {
     () => patient?.observations.filter((o) => o.category !== "laboratory") ?? [],
     [patient?.observations],
   );
+
+  async function openFhirBundle() {
+    if (!id?.trim()) return;
+    setFhirOpen(true);
+    setFhirJson("");
+    setFhirLoading(true);
+    try {
+      const obj = await api<Record<string, unknown>>(`/api/patients/${encodeURIComponent(id)}/fhir`);
+      setFhirJson(JSON.stringify(obj, null, 2));
+    } catch (e) {
+      setFhirJson(e instanceof Error ? e.message : "Failed to load FHIR bundle");
+    } finally {
+      setFhirLoading(false);
+    }
+  }
 
   if (phase === "loading") {
     return (
@@ -461,7 +523,18 @@ export default function PatientSummary() {
           </svg>
           <span className="ps-top-label">FHIR patient record</span>
           <span className="ps-fhir-chip">R4 · FHIR native</span>
+          <button type="button" className="btn btn-ghost ps-fhir-bundle-btn" onClick={() => void openFhirBundle()}>
+            FHIR bundle
+          </button>
         </div>
+
+        <nav className="ps-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/patients">Patient Directory</Link>
+          <span className="ps-breadcrumb-sep" aria-hidden>
+            /
+          </span>
+          <span className="ps-breadcrumb-current">{name}</span>
+        </nav>
 
         <div className="ps-patient-header">
           <div className="ps-avatar" aria-hidden>
@@ -564,19 +637,25 @@ export default function PatientSummary() {
               </div>
             </div>
 
-            {/* Chunk 3: main clinical tabs */}
+            {/* Chunk 3: main clinical tabs · Chunk 6: counts */}
             <nav className="ps-main-tabs" aria-label="Clinical record sections">
-              {PS_MAIN_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`ps-main-tab ps-main-tab--${tab.id}${activeTab === tab.id ? " ps-main-tab--active" : ""}`}
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-pressed={activeTab === tab.id}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              {PS_MAIN_TABS.map((tab) => {
+                const cnt = mainTabCount(patient, tab.id);
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`ps-main-tab ps-main-tab--${tab.id}${activeTab === tab.id ? " ps-main-tab--active" : ""}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    aria-pressed={activeTab === tab.id}
+                  >
+                    <span className="ps-main-tab-text">{tab.label}</span>
+                    <span className="ps-tab-count" aria-label={`${cnt} items`}>
+                      {cnt}
+                    </span>
+                  </button>
+                );
+              })}
             </nav>
 
             {/* Chunk 4: panels per tab */}
@@ -805,14 +884,35 @@ export default function PatientSummary() {
                 </section>
               )}
 
+              {/* Chunk 5: medication & vaccine sub-tabs (immunization included) */}
               {activeTab === "medications" && (
                 <section className="ps-panel" aria-labelledby="ps-med-heading">
                   <h2 id="ps-med-heading" className="ps-panel-title">
-                    Medications
+                    Medications & vaccines
                   </h2>
-                  <div className="ps-med-stack">
-                    <div className="ps-clinical-card">
-                      <h3 className="ps-clinical-card-title">MedicationRequest</h3>
+                  <div className="pe-med-tabs" role="tablist" aria-label="Medication and immunization resource types">
+                    {PS_MED_SUB_TABS.map((tab) => {
+                      const sel = medSubTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={sel}
+                          className={["pe-med-tab", `pe-med-tab--${tab.id}`, sel ? "pe-med-tab--active" : ""]
+                            .filter(Boolean)
+                            .join(" ")}
+                          onClick={() => setMedSubTab(tab.id)}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {medSubTab === "request" && (
+                    <div className="ps-med-panel" role="tabpanel">
+                      <h3 className="pe-med-section-title">MedicationRequest</h3>
                       {patient.medicationRequests.length === 0 ? (
                         <p className="ps-panel-empty">None.</p>
                       ) : (
@@ -822,7 +922,9 @@ export default function PatientSummary() {
                               <tr>
                                 <th>Medication</th>
                                 <th>Status</th>
+                                <th>Intent</th>
                                 <th>Dosage</th>
+                                <th>Requester</th>
                                 <th>Authored</th>
                               </tr>
                             </thead>
@@ -831,7 +933,9 @@ export default function PatientSummary() {
                                 <tr key={m.id}>
                                   <td>{m.medicationCode}</td>
                                   <td>{m.status?.trim() || "—"}</td>
+                                  <td>{m.intent?.trim() || "—"}</td>
                                   <td>{m.dosageText?.trim() || "—"}</td>
+                                  <td>{m.requesterText?.trim() || "—"}</td>
                                   <td className="cell-mono">{formatDateTime(m.authoredOn)}</td>
                                 </tr>
                               ))}
@@ -840,8 +944,11 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
-                    <div className="ps-clinical-card">
-                      <h3 className="ps-clinical-card-title">MedicationAdministration</h3>
+                  )}
+
+                  {medSubTab === "administration" && (
+                    <div className="ps-med-panel" role="tabpanel">
+                      <h3 className="pe-med-section-title">MedicationAdministration</h3>
                       {patient.medicationAdministrations.length === 0 ? (
                         <p className="ps-panel-empty">None.</p>
                       ) : (
@@ -850,6 +957,7 @@ export default function PatientSummary() {
                             <thead>
                               <tr>
                                 <th>Medication</th>
+                                <th>Status</th>
                                 <th>Effective</th>
                                 <th>Dose</th>
                                 <th>Route</th>
@@ -859,6 +967,7 @@ export default function PatientSummary() {
                               {patient.medicationAdministrations.map((m) => (
                                 <tr key={m.id}>
                                   <td>{m.medicationCode}</td>
+                                  <td>{m.status?.trim() || "—"}</td>
                                   <td className="cell-mono">{formatDateTime(m.effectiveDateTime)}</td>
                                   <td>{m.doseText?.trim() || "—"}</td>
                                   <td>{m.routeText?.trim() || "—"}</td>
@@ -869,8 +978,11 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
-                    <div className="ps-clinical-card">
-                      <h3 className="ps-clinical-card-title">MedicationDispense</h3>
+                  )}
+
+                  {medSubTab === "dispense" && (
+                    <div className="ps-med-panel" role="tabpanel">
+                      <h3 className="pe-med-section-title">MedicationDispense</h3>
                       {patient.medicationDispenses.length === 0 ? (
                         <p className="ps-panel-empty">None.</p>
                       ) : (
@@ -879,6 +991,7 @@ export default function PatientSummary() {
                             <thead>
                               <tr>
                                 <th>Medication</th>
+                                <th>Status</th>
                                 <th>When handed over</th>
                                 <th>Quantity</th>
                                 <th>Days supply</th>
@@ -888,6 +1001,7 @@ export default function PatientSummary() {
                               {patient.medicationDispenses.map((m) => (
                                 <tr key={m.id}>
                                   <td>{m.medicationCode}</td>
+                                  <td>{m.status?.trim() || "—"}</td>
                                   <td className="cell-mono">{formatDateTime(m.whenHandedOver)}</td>
                                   <td>{m.quantityText?.trim() || "—"}</td>
                                   <td>{m.daysSupply != null ? String(m.daysSupply) : "—"}</td>
@@ -898,8 +1012,11 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
-                    <div className="ps-clinical-card">
-                      <h3 className="ps-clinical-card-title">MedicationStatement</h3>
+                  )}
+
+                  {medSubTab === "statement" && (
+                    <div className="ps-med-panel" role="tabpanel">
+                      <h3 className="pe-med-section-title">MedicationStatement</h3>
                       {patient.medicationStatements.length === 0 ? (
                         <p className="ps-panel-empty">None.</p>
                       ) : (
@@ -927,8 +1044,11 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
-                    <div className="ps-clinical-card">
-                      <h3 className="ps-clinical-card-title">Medication (product)</h3>
+                  )}
+
+                  {medSubTab === "medication" && (
+                    <div className="ps-med-panel" role="tabpanel">
+                      <h3 className="pe-med-section-title">Medication (product)</h3>
                       {patient.medications.length === 0 ? (
                         <p className="ps-panel-empty">None.</p>
                       ) : (
@@ -956,7 +1076,41 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  )}
+
+                  {medSubTab === "immunization" && (
+                    <div className="ps-med-panel" role="tabpanel">
+                      <h3 className="pe-med-section-title">Immunization</h3>
+                      {patient.immunizations.length === 0 ? (
+                        <p className="ps-panel-empty">No immunizations.</p>
+                      ) : (
+                        <div className="table-scroll ps-table-wrap">
+                          <table className="data-table ps-data-table">
+                            <thead>
+                              <tr>
+                                <th>Vaccine</th>
+                                <th>Status</th>
+                                <th>Occurrence</th>
+                                <th>Lot</th>
+                                <th>Manufacturer</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patient.immunizations.map((im) => (
+                                <tr key={im.id}>
+                                  <td>{im.vaccineCode}</td>
+                                  <td>{im.status?.trim() || "—"}</td>
+                                  <td className="cell-mono">{formatDateTime(im.occurrenceDateTime)}</td>
+                                  <td>{im.lotNumber?.trim() || "—"}</td>
+                                  <td>{im.manufacturerText?.trim() || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -998,40 +1152,6 @@ export default function PatientSummary() {
                 </section>
               )}
 
-              {activeTab === "immunizations" && (
-                <section className="ps-panel" aria-labelledby="ps-imm-heading">
-                  <h2 id="ps-imm-heading" className="ps-panel-title">
-                    Immunizations
-                  </h2>
-                  {patient.immunizations.length === 0 ? (
-                    <p className="ps-panel-empty">No immunizations.</p>
-                  ) : (
-                    <div className="table-scroll ps-table-wrap">
-                      <table className="data-table ps-data-table">
-                        <thead>
-                          <tr>
-                            <th>Vaccine</th>
-                            <th>Occurrence</th>
-                            <th>Lot</th>
-                            <th>Manufacturer</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {patient.immunizations.map((im) => (
-                            <tr key={im.id}>
-                              <td>{im.vaccineCode}</td>
-                              <td className="cell-mono">{formatDateTime(im.occurrenceDateTime)}</td>
-                              <td>{im.lotNumber?.trim() || "—"}</td>
-                              <td>{im.manufacturerText?.trim() || "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </section>
-              )}
-
               {activeTab === "family" && (
                 <section className="ps-panel" aria-labelledby="ps-fmh-heading">
                   <h2 id="ps-fmh-heading" className="ps-panel-title">
@@ -1050,6 +1170,14 @@ export default function PatientSummary() {
                             )}
                           </div>
                           <dl className="ps-fmh-dl">
+                            {(fh.identifierValue?.trim() || fh.identifierSystem?.trim()) && (
+                              <>
+                                <dt>Identifier</dt>
+                                <dd className="cell-mono">
+                                  {[fh.identifierSystem, fh.identifierValue].filter(Boolean).join(" | ") || "—"}
+                                </dd>
+                              </>
+                            )}
                             {fh.date && (
                               <>
                                 <dt>Date</dt>
@@ -1066,6 +1194,24 @@ export default function PatientSummary() {
                               <>
                                 <dt>Age</dt>
                                 <dd>{fh.ageString}</dd>
+                              </>
+                            )}
+                            {fh.deceasedBoolean != null && (
+                              <>
+                                <dt>Deceased</dt>
+                                <dd>{fh.deceasedBoolean ? "Yes" : "No"}</dd>
+                              </>
+                            )}
+                            {fh.deceasedDate && (
+                              <>
+                                <dt>Deceased date</dt>
+                                <dd>{formatDateTime(fh.deceasedDate)}</dd>
+                              </>
+                            )}
+                            {fh.reasonText?.trim() && (
+                              <>
+                                <dt>Reason</dt>
+                                <dd>{fh.reasonText.trim()}</dd>
                               </>
                             )}
                           </dl>
@@ -1104,6 +1250,31 @@ export default function PatientSummary() {
             </p>
           </div>
         </div>
+
+        {fhirOpen && (
+          <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="FHIR bundle">
+            <div className="modal-panel">
+              <div className="modal-head">
+                <h2>FHIR Bundle (collection)</h2>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setFhirOpen(false);
+                    setFhirJson("");
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+              {fhirLoading ? (
+                <p className="lead">Loading…</p>
+              ) : (
+                <textarea className="modal-json" readOnly value={fhirJson} spellCheck={false} />
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
