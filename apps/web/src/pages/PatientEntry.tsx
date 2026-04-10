@@ -161,6 +161,44 @@ type ImmunizationRow = {
   encounterIndex: string;
 };
 
+/** Nested row for FamilyMemberHistory.condition */
+type FamilyMemberHistoryConditionRow = {
+  code: string;
+  outcomeText: string;
+  outcomeCode: string;
+  contributedToDeath: boolean;
+};
+
+/** Nested row for FamilyMemberHistory.procedure */
+type FamilyMemberHistoryProcedureRow = {
+  code: string;
+  outcomeText: string;
+  outcomeCode: string;
+  contributedToDeath: boolean;
+};
+
+/** Maps to API FamilyMemberHistory + nested condition/procedure tables */
+type FamilyMemberHistoryRow = {
+  identifierSystem: string;
+  identifierValue: string;
+  status: string;
+  dataAbsentReasonText: string;
+  dataAbsentReasonCode: string;
+  date: string;
+  name: string;
+  relationshipText: string;
+  relationshipCode: string;
+  sex: string;
+  ageString: string;
+  /** "" | "true" | "false" — omit from payload when "" */
+  deceasedBoolean: string;
+  deceasedDate: string;
+  reasonText: string;
+  reasonCode: string;
+  conditions: FamilyMemberHistoryConditionRow[];
+  procedures: FamilyMemberHistoryProcedureRow[];
+};
+
 const emptyLab = (): LabRow => ({
   code: "",
   valueQuantity: "",
@@ -314,6 +352,40 @@ const emptyImmunization = (): ImmunizationRow => ({
   encounterIndex: "",
 });
 
+const emptyFmhCondition = (): FamilyMemberHistoryConditionRow => ({
+  code: "",
+  outcomeText: "",
+  outcomeCode: "",
+  contributedToDeath: false,
+});
+
+const emptyFmhProcedure = (): FamilyMemberHistoryProcedureRow => ({
+  code: "",
+  outcomeText: "",
+  outcomeCode: "",
+  contributedToDeath: false,
+});
+
+const emptyFamilyMemberHistory = (): FamilyMemberHistoryRow => ({
+  identifierSystem: "",
+  identifierValue: "",
+  status: "completed",
+  dataAbsentReasonText: "",
+  dataAbsentReasonCode: "",
+  date: "",
+  name: "",
+  relationshipText: "",
+  relationshipCode: "",
+  sex: "",
+  ageString: "",
+  deceasedBoolean: "",
+  deceasedDate: "",
+  reasonText: "",
+  reasonCode: "",
+  conditions: [],
+  procedures: [],
+});
+
 const MED_SUB_TABS = [
   { id: "request" as const, label: "MedicationRequest" },
   { id: "administration" as const, label: "MedicationAdministration" },
@@ -336,6 +408,7 @@ const MAIN_TABS = [
   { id: "condition" as const, label: "Condition" },
   { id: "procedure" as const, label: "Procedure" },
   { id: "allergy" as const, label: "Allergy intolerance" },
+  { id: "familyHistory" as const, label: "Family history" },
   { id: "encounter" as const, label: "Encounter" },
   { id: "insurance" as const, label: "Insurance" },
   { id: "medication" as const, label: "Medication & vaccine" },
@@ -358,6 +431,19 @@ function organizationPayloadOptions(rows: OrganizationRow[]): { index: number; l
 
 function organizationRowIncludedInPayload(org: OrganizationRow): boolean {
   return org.name.trim() !== "";
+}
+
+function familyMemberHistoryRowIncludedInPayload(row: FamilyMemberHistoryRow): boolean {
+  if (row.name.trim() || row.identifierSystem.trim() || row.identifierValue.trim() || row.status.trim()) return true;
+  if (row.dataAbsentReasonText.trim() || row.dataAbsentReasonCode.trim()) return true;
+  if (row.date || row.relationshipText.trim() || row.relationshipCode.trim()) return true;
+  if (row.sex || row.ageString.trim()) return true;
+  if (row.deceasedDate) return true;
+  if (row.deceasedBoolean !== "") return true;
+  if (row.reasonText.trim() || row.reasonCode.trim()) return true;
+  if (row.conditions.some((c) => c.code.trim())) return true;
+  if (row.procedures.some((p) => p.code.trim())) return true;
+  return false;
 }
 
 /** Indices match the order of practitioners sent to ingest (rows without given names are skipped). */
@@ -550,6 +636,7 @@ export default function PatientEntry() {
   const [medicationStatements, setMedicationStatements] = useState<MedicationStatementRow[]>([]);
   const [medicationProducts, setMedicationProducts] = useState<MedicationProductRow[]>([]);
   const [immunizations, setImmunizations] = useState<ImmunizationRow[]>([]);
+  const [familyMemberHistories, setFamilyMemberHistories] = useState<FamilyMemberHistoryRow[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -566,7 +653,7 @@ export default function PatientEntry() {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if (!raw) return;
       const d = JSON.parse(raw) as Record<string, unknown>;
-      if (d.v !== 1 && d.v !== 2 && d.v !== 3) return;
+      if (d.v !== 1 && d.v !== 2 && d.v !== 3 && d.v !== 4) return;
       const mt = d.activeMainTab;
       if (typeof mt === "string" && MAIN_TABS.some((t) => t.id === mt)) {
         setActiveMainTab(mt as MainTabId);
@@ -608,6 +695,8 @@ export default function PatientEntry() {
       if (Array.isArray(d.medicationStatements)) setMedicationStatements(d.medicationStatements as MedicationStatementRow[]);
       if (Array.isArray(d.medicationProducts)) setMedicationProducts(d.medicationProducts as MedicationProductRow[]);
       if (Array.isArray(d.immunizations)) setImmunizations(d.immunizations as ImmunizationRow[]);
+      if (Array.isArray(d.familyMemberHistories))
+        setFamilyMemberHistories(d.familyMemberHistories as FamilyMemberHistoryRow[]);
       if (typeof d.editingPatientId === "string" && d.editingPatientId.trim()) {
         setEditingPatientId(d.editingPatientId.trim());
       }
@@ -622,7 +711,7 @@ export default function PatientEntry() {
   function saveDraft() {
     try {
       const payload = {
-        v: 3 as const,
+        v: 4 as const,
         activeMainTab,
         editingPatientId,
         loadPatientIdInput,
@@ -657,6 +746,7 @@ export default function PatientEntry() {
         medicationStatements,
         medicationProducts,
         immunizations,
+        familyMemberHistories,
       };
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
       setError(null);
@@ -958,6 +1048,50 @@ export default function PatientEntry() {
         })),
       );
 
+      const fmhApi = (Array.isArray(p.familyMemberHistories) ? p.familyMemberHistories : []) as Record<
+        string,
+        unknown
+      >[];
+      fmhApi.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+      setFamilyMemberHistories(
+        fmhApi.map((fh) => {
+          const conds = (Array.isArray(fh.conditions) ? fh.conditions : []) as Record<string, unknown>[];
+          const procs = (Array.isArray(fh.procedures) ? fh.procedures : []) as Record<string, unknown>[];
+          return {
+            identifierSystem: typeof fh.identifierSystem === "string" ? fh.identifierSystem : "",
+            identifierValue: typeof fh.identifierValue === "string" ? fh.identifierValue : "",
+            status: typeof fh.status === "string" ? fh.status : "completed",
+            dataAbsentReasonText:
+              typeof fh.dataAbsentReasonText === "string" ? fh.dataAbsentReasonText : "",
+            dataAbsentReasonCode:
+              typeof fh.dataAbsentReasonCode === "string" ? fh.dataAbsentReasonCode : "",
+            date: dateOnlyInput(fh.date as string | undefined),
+            name: typeof fh.name === "string" ? fh.name : "",
+            relationshipText: typeof fh.relationshipText === "string" ? fh.relationshipText : "",
+            relationshipCode: typeof fh.relationshipCode === "string" ? fh.relationshipCode : "",
+            sex: typeof fh.sex === "string" ? fh.sex : "",
+            ageString: typeof fh.ageString === "string" ? fh.ageString : "",
+            deceasedBoolean:
+              fh.deceasedBoolean === true ? "true" : fh.deceasedBoolean === false ? "false" : "",
+            deceasedDate: dateOnlyInput(fh.deceasedDate as string | undefined),
+            reasonText: typeof fh.reasonText === "string" ? fh.reasonText : "",
+            reasonCode: typeof fh.reasonCode === "string" ? fh.reasonCode : "",
+            conditions: conds.map((c) => ({
+              code: String(c.code ?? ""),
+              outcomeText: typeof c.outcomeText === "string" ? c.outcomeText : "",
+              outcomeCode: typeof c.outcomeCode === "string" ? c.outcomeCode : "",
+              contributedToDeath: c.contributedToDeath === true,
+            })),
+            procedures: procs.map((pr) => ({
+              code: String(pr.code ?? ""),
+              outcomeText: typeof pr.outcomeText === "string" ? pr.outcomeText : "",
+              outcomeCode: typeof pr.outcomeCode === "string" ? pr.outcomeCode : "",
+              contributedToDeath: pr.contributedToDeath === true,
+            })),
+          };
+        }),
+      );
+
       setFamily(typeof p.family === "string" ? p.family : "");
       setGiven(givenArrayToCommaInput(String(p.given ?? "[]")));
       setGender(typeof p.gender === "string" ? p.gender : "");
@@ -1229,6 +1363,44 @@ export default function PatientEntry() {
           lotNumber: im.lotNumber.trim() || undefined,
           manufacturerText: im.manufacturerText.trim() || undefined,
           encounterIndex: payloadEncounterIndex(im.encounterIndex),
+        })),
+      familyMemberHistories: familyMemberHistories
+        .filter((row) => familyMemberHistoryRowIncludedInPayload(row))
+        .map((row) => ({
+          identifierSystem: row.identifierSystem.trim() || undefined,
+          identifierValue: row.identifierValue.trim() || undefined,
+          status: row.status.trim() || undefined,
+          dataAbsentReasonText: row.dataAbsentReasonText.trim() || undefined,
+          dataAbsentReasonCode: row.dataAbsentReasonCode.trim() || undefined,
+          date: row.date ? new Date(`${row.date}T12:00:00`).toISOString() : undefined,
+          name: row.name.trim() || undefined,
+          relationshipText: row.relationshipText.trim() || undefined,
+          relationshipCode: row.relationshipCode.trim() || undefined,
+          sex: row.sex.trim() || undefined,
+          ageString: row.ageString.trim() || undefined,
+          deceasedBoolean:
+            row.deceasedBoolean === "" ? undefined : row.deceasedBoolean === "true",
+          deceasedDate: row.deceasedDate
+            ? new Date(`${row.deceasedDate}T12:00:00`).toISOString()
+            : undefined,
+          reasonText: row.reasonText.trim() || undefined,
+          reasonCode: row.reasonCode.trim() || undefined,
+          conditions: row.conditions
+            .filter((c) => c.code.trim())
+            .map((c) => ({
+              code: c.code.trim(),
+              outcomeText: c.outcomeText.trim() || undefined,
+              outcomeCode: c.outcomeCode.trim() || undefined,
+              contributedToDeath: c.contributedToDeath,
+            })),
+          procedures: row.procedures
+            .filter((pr) => pr.code.trim())
+            .map((pr) => ({
+              code: pr.code.trim(),
+              outcomeText: pr.outcomeText.trim() || undefined,
+              outcomeCode: pr.outcomeCode.trim() || undefined,
+              contributedToDeath: pr.contributedToDeath,
+            })),
         })),
     };
 
@@ -2217,6 +2389,454 @@ export default function PatientEntry() {
           ))}
           <button type="button" className="btn btn-ghost" onClick={() => setAllergies([...allergies, emptyAllergy()])}>
             Add allergy or intolerance
+          </button>
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="pe-panel-familyHistory"
+        aria-labelledby="pe-tab-familyHistory"
+        hidden={activeMainTab !== "familyHistory"}
+      >
+        <div className="card">
+          <h2>Family history (FHIR FamilyMemberHistory)</h2>
+          <p className="lead" style={{ marginBottom: "1rem" }}>
+            One block per relative or family history record. The <strong>patient</strong> reference is always the person you
+            are entering on this form. Add nested <strong>condition</strong> and <strong>procedure</strong> rows with a code;
+            empty top-level rows (no fields and no nested codes) are not saved.
+          </p>
+          {familyMemberHistories.length === 0 && (
+            <p className="lead" style={{ marginBottom: "1rem" }}>
+              No family history rows yet — use &quot;Add family history&quot; below.
+            </p>
+          )}
+          {familyMemberHistories.map((row, i) => (
+            <div
+              key={i}
+              className="field-grid"
+              style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid rgba(0,0,0,0.06)" }}
+            >
+              <div className="field">
+                <label>Status</label>
+                <select
+                  value={row.status}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, status: e.target.value } : r)),
+                    )
+                  }
+                >
+                  <option value="partial">partial</option>
+                  <option value="completed">completed</option>
+                  <option value="entered-in-error">entered-in-error</option>
+                  <option value="health-unknown">health-unknown</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Identifier system (URI)</label>
+                <input
+                  value={row.identifierSystem}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, identifierSystem: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Identifier value</label>
+                <input
+                  value={row.identifierValue}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, identifierValue: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Data absent reason (text)</label>
+                <input
+                  value={row.dataAbsentReasonText}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, dataAbsentReasonText: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Data absent reason (code)</label>
+                <input
+                  value={row.dataAbsentReasonCode}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, dataAbsentReasonCode: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Recorded date</label>
+                <input
+                  type="date"
+                  value={row.date}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, date: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Relative name</label>
+                <input
+                  value={row.name}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Relationship (text)</label>
+                <input
+                  value={row.relationshipText}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, relationshipText: e.target.value } : r)),
+                    )
+                  }
+                  placeholder="Father, mother, sibling…"
+                />
+              </div>
+              <div className="field">
+                <label>Relationship (code)</label>
+                <input
+                  value={row.relationshipCode}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, relationshipCode: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Sex (administrative)</label>
+                <select
+                  value={row.sex}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, sex: e.target.value } : r)),
+                    )
+                  }
+                >
+                  <option value="">—</option>
+                  <option value="male">male</option>
+                  <option value="female">female</option>
+                  <option value="other">other</option>
+                  <option value="unknown">unknown</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Age (text)</label>
+                <input
+                  value={row.ageString}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, ageString: e.target.value } : r)),
+                    )
+                  }
+                  placeholder="e.g. 51a, or 40–50"
+                />
+              </div>
+              <div className="field">
+                <label>Deceased</label>
+                <select
+                  value={row.deceasedBoolean}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, deceasedBoolean: e.target.value } : r)),
+                    )
+                  }
+                >
+                  <option value="">— unknown —</option>
+                  <option value="false">false</option>
+                  <option value="true">true</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Deceased date</label>
+                <input
+                  type="date"
+                  value={row.deceasedDate}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, deceasedDate: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Reason (text)</label>
+                <input
+                  value={row.reasonText}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, reasonText: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Reason (code)</label>
+                <input
+                  value={row.reasonCode}
+                  onChange={(e) =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) => (j === i ? { ...r, reasonCode: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <h3 style={{ margin: "0.5rem 0 0.75rem", fontSize: "1rem" }}>Conditions</h3>
+                {row.conditions.length === 0 && (
+                  <p className="lead" style={{ margin: "0 0 0.4rem", fontSize: "0.9rem" }}>
+                    No conditions — add below if needed.
+                  </p>
+                )}
+                {row.conditions.map((c, ci) => (
+                  <div
+                    key={ci}
+                    className="field-grid"
+                    style={{ marginBottom: "0.75rem", padding: "0.75rem", background: "rgba(0,0,0,0.03)", borderRadius: 8 }}
+                  >
+                    <div className="field" style={{ gridColumn: "1 / -1" }}>
+                      <label>Condition code / text</label>
+                      <input
+                        value={c.code}
+                        onChange={(e) =>
+                          setFamilyMemberHistories(
+                            familyMemberHistories.map((r, j) =>
+                              j === i
+                                ? {
+                                    ...r,
+                                    conditions: r.conditions.map((cc, cj) =>
+                                      cj === ci ? { ...cc, code: e.target.value } : cc,
+                                    ),
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Outcome (text)</label>
+                      <input
+                        value={c.outcomeText}
+                        onChange={(e) =>
+                          setFamilyMemberHistories(
+                            familyMemberHistories.map((r, j) =>
+                              j === i
+                                ? {
+                                    ...r,
+                                    conditions: r.conditions.map((cc, cj) =>
+                                      cj === ci ? { ...cc, outcomeText: e.target.value } : cc,
+                                    ),
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Outcome (code)</label>
+                      <input
+                        value={c.outcomeCode}
+                        onChange={(e) =>
+                          setFamilyMemberHistories(
+                            familyMemberHistories.map((r, j) =>
+                              j === i
+                                ? {
+                                    ...r,
+                                    conditions: r.conditions.map((cc, cj) =>
+                                      cj === ci ? { ...cc, outcomeCode: e.target.value } : cc,
+                                    ),
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="field" style={{ gridColumn: "1 / -1" }}>
+                      <label className="pe-inline-check">
+                        <input
+                          type="checkbox"
+                          checked={c.contributedToDeath}
+                          onChange={(e) =>
+                            setFamilyMemberHistories(
+                              familyMemberHistories.map((r, j) =>
+                                j === i
+                                  ? {
+                                      ...r,
+                                      conditions: r.conditions.map((cc, cj) =>
+                                        cj === ci ? { ...cc, contributedToDeath: e.target.checked } : cc,
+                                      ),
+                                    }
+                                  : r,
+                              ),
+                            )
+                          }
+                        />
+                        Contributed to death
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ marginTop: "0.25rem" }}
+                  onClick={() =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) =>
+                        j === i ? { ...r, conditions: [...r.conditions, emptyFmhCondition()] } : r,
+                      ),
+                    )
+                  }
+                >
+                  Add condition
+                </button>
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <h3 style={{ margin: "0.75rem 0 0.75rem", fontSize: "1rem" }}>Procedures</h3>
+                {row.procedures.length === 0 && (
+                  <p className="lead" style={{ margin: "0 0 0.4rem", fontSize: "0.9rem" }}>
+                    No procedures — add below if needed.
+                  </p>
+                )}
+                {row.procedures.map((p, pi) => (
+                  <div
+                    key={pi}
+                    className="field-grid"
+                    style={{ marginBottom: "0.75rem", padding: "0.75rem", background: "rgba(0,0,0,0.03)", borderRadius: 8 }}
+                  >
+                    <div className="field" style={{ gridColumn: "1 / -1" }}>
+                      <label>Procedure code / text</label>
+                      <input
+                        value={p.code}
+                        onChange={(e) =>
+                          setFamilyMemberHistories(
+                            familyMemberHistories.map((r, j) =>
+                              j === i
+                                ? {
+                                    ...r,
+                                    procedures: r.procedures.map((pp, pj) =>
+                                      pj === pi ? { ...pp, code: e.target.value } : pp,
+                                    ),
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Outcome (text)</label>
+                      <input
+                        value={p.outcomeText}
+                        onChange={(e) =>
+                          setFamilyMemberHistories(
+                            familyMemberHistories.map((r, j) =>
+                              j === i
+                                ? {
+                                    ...r,
+                                    procedures: r.procedures.map((pp, pj) =>
+                                      pj === pi ? { ...pp, outcomeText: e.target.value } : pp,
+                                    ),
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Outcome (code)</label>
+                      <input
+                        value={p.outcomeCode}
+                        onChange={(e) =>
+                          setFamilyMemberHistories(
+                            familyMemberHistories.map((r, j) =>
+                              j === i
+                                ? {
+                                    ...r,
+                                    procedures: r.procedures.map((pp, pj) =>
+                                      pj === pi ? { ...pp, outcomeCode: e.target.value } : pp,
+                                    ),
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="field" style={{ gridColumn: "1 / -1" }}>
+                      <label className="pe-inline-check">
+                        <input
+                          type="checkbox"
+                          checked={p.contributedToDeath}
+                          onChange={(e) =>
+                            setFamilyMemberHistories(
+                              familyMemberHistories.map((r, j) =>
+                                j === i
+                                  ? {
+                                      ...r,
+                                      procedures: r.procedures.map((pp, pj) =>
+                                        pj === pi ? { ...pp, contributedToDeath: e.target.checked } : pp,
+                                      ),
+                                    }
+                                  : r,
+                              ),
+                            )
+                          }
+                        />
+                        Contributed to death
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ marginTop: "0.25rem" }}
+                  onClick={() =>
+                    setFamilyMemberHistories(
+                      familyMemberHistories.map((r, j) =>
+                        j === i ? { ...r, procedures: [...r.procedures, emptyFmhProcedure()] } : r,
+                      ),
+                    )
+                  }
+                >
+                  Add procedure
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setFamilyMemberHistories([...familyMemberHistories, emptyFamilyMemberHistory()])}
+          >
+            Add family history
           </button>
         </div>
       </div>

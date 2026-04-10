@@ -4,6 +4,9 @@ import type {
   Coverage,
   DiagnosticReport,
   Encounter,
+  FamilyMemberHistory,
+  FamilyMemberHistoryCondition,
+  FamilyMemberHistoryProcedure,
   Immunization,
   Medication,
   MedicationAdministration,
@@ -23,6 +26,11 @@ type EncounterWithPractitioner = Encounter & {
   serviceProviderOrganization: Organization | null;
 };
 
+export type FamilyMemberHistoryWithNested = FamilyMemberHistory & {
+  conditions: FamilyMemberHistoryCondition[];
+  procedures: FamilyMemberHistoryProcedure[];
+};
+
 export type PatientWithRelations = Patient & {
   observations: Observation[];
   conditions: Condition[];
@@ -40,6 +48,7 @@ export type PatientWithRelations = Patient & {
   medicationStatements: MedicationStatement[];
   medications: Medication[];
   immunizations: Immunization[];
+  familyMemberHistories: FamilyMemberHistoryWithNested[];
 };
 
 function parseGiven(given: string): string[] {
@@ -163,6 +172,70 @@ export function toFhirOrganization(org: Organization): Record<string, unknown> {
     telecom: telecom.length ? telecom : undefined,
     address,
   };
+}
+
+function codeableConceptText(
+  text?: string | null,
+  code?: string | null,
+): { text?: string; coding?: { code: string }[] } | undefined {
+  const t = text?.trim();
+  const c = code?.trim();
+  if (!t && !c) return undefined;
+  return { text: t || undefined, coding: c ? [{ code: c }] : undefined };
+}
+
+export function toFhirFamilyMemberHistory(fmh: FamilyMemberHistoryWithNested): Record<string, unknown> {
+  const identifier =
+    fmh.identifierSystem && fmh.identifierValue
+      ? [{ system: fmh.identifierSystem, value: fmh.identifierValue }]
+      : undefined;
+
+  const reasonCc = codeableConceptText(fmh.reasonText, fmh.reasonCode);
+  const reasonCode = reasonCc ? [reasonCc] : undefined;
+
+  const condition =
+    fmh.conditions.length > 0
+      ? fmh.conditions.map((c) => ({
+          code: { text: c.code },
+          outcome: codeableConceptText(c.outcomeText, c.outcomeCode),
+          contributedToDeath: c.contributedToDeath ?? undefined,
+        }))
+      : undefined;
+
+  const procedure =
+    fmh.procedures.length > 0
+      ? fmh.procedures.map((p) => ({
+          code: { text: p.code },
+          outcome: codeableConceptText(p.outcomeText, p.outcomeCode),
+          contributedToDeath: p.contributedToDeath ?? undefined,
+        }))
+      : undefined;
+
+  const out: Record<string, unknown> = {
+    resourceType: "FamilyMemberHistory",
+    id: fmh.id,
+    meta: { lastUpdated: fmh.updatedAt.toISOString() },
+    identifier,
+    status: fmh.status ?? "completed",
+    patient: { reference: `Patient/${fmh.patientId}` },
+    dataAbsentReason: codeableConceptText(fmh.dataAbsentReasonText, fmh.dataAbsentReasonCode),
+    date: fmh.date ? fmh.date.toISOString() : undefined,
+    name: fmh.name ?? undefined,
+    relationship: codeableConceptText(fmh.relationshipText, fmh.relationshipCode),
+    sex: fmh.sex ?? undefined,
+    ageString: fmh.ageString ?? undefined,
+    reasonCode,
+    condition,
+    procedure,
+  };
+
+  if (fmh.deceasedDate) {
+    out.deceasedDateTime = fmh.deceasedDate.toISOString();
+  } else if (fmh.deceasedBoolean != null) {
+    out.deceasedBoolean = fmh.deceasedBoolean;
+  }
+
+  return out;
 }
 
 export function toFhirObservation(o: Observation): Record<string, unknown> {
@@ -448,6 +521,10 @@ export function toFhirCollectionBundle(p: PatientWithRelations): Record<string, 
 
   for (const org of p.organizations) {
     entries.push({ resource: toFhirOrganization(org) });
+  }
+
+  for (const fmh of p.familyMemberHistories) {
+    entries.push({ resource: toFhirFamilyMemberHistory(fmh) });
   }
 
   for (const o of p.observations) {
