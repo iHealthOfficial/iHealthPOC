@@ -1,5 +1,6 @@
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { IconFileText, IconHome, IconUpload, IconUserPlus, IconUsers } from "./components/NavIcons";
+import { IconFileText, IconHome, IconShield, IconUpload, IconUserPlus, IconUsers } from "./components/NavIcons";
+import ConsentPortal from "./pages/ConsentPortal";
 import Home from "./pages/Home";
 import Manual from "./pages/Manual";
 import PatientEntry from "./pages/PatientEntry";
@@ -17,6 +18,7 @@ export default function App() {
   const isHome = pathname === "/";
   const isPatientEntry = pathname === "/patient";
   const isPatientSummary = pathname.startsWith("/patient/summary/");
+  const isConsent = pathname === "/consent";
 
   return (
     <div className="app-root">
@@ -42,6 +44,10 @@ export default function App() {
               <IconUserPlus className="nav-tab-icon" />
               <span>Manual Patient Entry</span>
             </NavLink>
+            <NavLink to="/consent" className={navTabClass("nav-tab--consent")}>
+              <IconShield className="nav-tab-icon" />
+              <span>Consent Portal</span>
+            </NavLink>
             <NavLink to="/manual" className={navTabClass("nav-tab--about")}>
               <IconFileText className="nav-tab-icon" />
               <span>About the Platform</span>
@@ -52,7 +58,7 @@ export default function App() {
 
       <main
         className={
-          isHome || isPatientEntry || isPatientSummary ? "site-main site-main--flush" : "site-main site-main--sheet"
+          isHome || isPatientEntry || isPatientSummary || isConsent ? "site-main site-main--flush" : "site-main site-main--sheet"
         }
       >
         <Routes>
@@ -61,6 +67,7 @@ export default function App() {
           <Route path="/patients" element={<Patients />} />
           <Route path="/patient/summary/:id" element={<PatientSummary />} />
           <Route path="/patient" element={<PatientEntry />} />
+          <Route path="/consent" element={<ConsentPortal />} />
           <Route path="/manual" element={<Manual />} />
         </Routes>
       </main>
