@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import type { ConsentResourceType } from "../consent/consentTypes";
+import {
+  isMainTabConsentVisible,
+  isMedSubTabConsentVisible,
+} from "../consent/patientSummaryConsent";
+import { useConsentScopes } from "../consent/useConsentScopes";
 
 /** GET /api/patients/:id includes full clinical graph (Prisma JSON dates as ISO strings). */
 type PractitionerRef = {
@@ -219,31 +225,37 @@ const PS_MED_SUB_TABS = [
 
 type PsMedSubTabId = (typeof PS_MED_SUB_TABS)[number]["id"];
 
-function mainTabCount(p: PatientFull, tab: PsMainTabId): number {
+function mainTabCount(
+  p: PatientFull,
+  tab: PsMainTabId,
+  scopes: Record<ConsentResourceType, boolean>,
+): number {
   switch (tab) {
     case "encounters":
-      return p.encounters.length;
-    case "clinical":
-      return (
-        p.observations.length +
-        p.conditions.length +
-        p.diagnosticReports.length +
-        p.procedures.length +
-        p.allergyIntolerances.length
-      );
-    case "medications":
-      return (
-        p.medicationRequests.length +
-        p.medicationAdministrations.length +
-        p.medicationDispenses.length +
-        p.medicationStatements.length +
-        p.medications.length +
-        p.immunizations.length
-      );
+      return scopes.Encounter ? p.encounters.length : 0;
+    case "clinical": {
+      let n = 0;
+      if (scopes.Observation) n += p.observations.length;
+      if (scopes.Condition) n += p.conditions.length;
+      if (scopes.DiagnosticReport) n += p.diagnosticReports.length;
+      if (scopes.Procedure) n += p.procedures.length;
+      if (scopes.AllergyIntolerance) n += p.allergyIntolerances.length;
+      return n;
+    }
+    case "medications": {
+      let n = 0;
+      if (scopes.MedicationRequest) n += p.medicationRequests.length;
+      if (scopes.MedicationAdministration) n += p.medicationAdministrations.length;
+      if (scopes.MedicationDispense) n += p.medicationDispenses.length;
+      if (scopes.MedicationStatement) n += p.medicationStatements.length;
+      if (scopes.Medication) n += p.medications.length;
+      if (scopes.Immunization) n += p.immunizations.length;
+      return n;
+    }
     case "insurance":
-      return p.coverages.length;
+      return scopes.Coverage ? p.coverages.length : 0;
     case "family":
-      return p.familyMemberHistories.length;
+      return scopes.FamilyMemberHistory ? p.familyMemberHistories.length : 0;
   }
 }
 
@@ -356,6 +368,7 @@ function emptyArr<T>(x: T[] | undefined): T[] {
 
 export default function PatientSummary() {
   const { id } = useParams<{ id: string }>();
+  const consentScopes = useConsentScopes(id?.trim() ?? "");
   const [patient, setPatient] = useState<PatientFull | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "notfound" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -435,6 +448,30 @@ export default function PatientSummary() {
     () => patient?.observations.filter((o) => o.category !== "laboratory") ?? [],
     [patient?.observations],
   );
+
+  const visibleMainTabs = useMemo(
+    () => PS_MAIN_TABS.filter((t) => isMainTabConsentVisible(consentScopes, t.id)),
+    [consentScopes],
+  );
+
+  const visibleMedSubTabs = useMemo(
+    () => PS_MED_SUB_TABS.filter((t) => isMedSubTabConsentVisible(consentScopes, t.id)),
+    [consentScopes],
+  );
+
+  useEffect(() => {
+    if (visibleMainTabs.length === 0) return;
+    if (!visibleMainTabs.some((t) => t.id === activeTab)) {
+      setActiveTab(visibleMainTabs[0]!.id);
+    }
+  }, [visibleMainTabs, activeTab]);
+
+  useEffect(() => {
+    if (visibleMedSubTabs.length === 0) return;
+    if (!visibleMedSubTabs.some((t) => t.id === medSubTab)) {
+      setMedSubTab(visibleMedSubTabs[0]!.id);
+    }
+  }, [visibleMedSubTabs, medSubTab]);
 
   async function openFhirBundle() {
     if (!id?.trim()) return;
@@ -637,29 +674,40 @@ export default function PatientSummary() {
               </div>
             </div>
 
-            {/* Chunk 3: main clinical tabs · Chunk 6: counts */}
-            <nav className="ps-main-tabs" aria-label="Clinical record sections">
-              {PS_MAIN_TABS.map((tab) => {
-                const cnt = mainTabCount(patient, tab.id);
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={`ps-main-tab ps-main-tab--${tab.id}${activeTab === tab.id ? " ps-main-tab--active" : ""}`}
-                    onClick={() => setActiveTab(tab.id)}
-                    aria-pressed={activeTab === tab.id}
-                  >
-                    <span className="ps-main-tab-text">{tab.label}</span>
-                    <span className="ps-tab-count" aria-label={`${cnt} items`}>
-                      {cnt}
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
+            <p className="ps-consent-hint">
+              Clinical sections follow your <Link to="/consent">Consent portal</Link> settings (saved in this
+              browser).
+            </p>
 
-            {/* Chunk 4: panels per tab */}
-            <div className="ps-panels">
+            {/* Chunk 3: consent-filtered main tabs · counts respect permitted resource types */}
+            {visibleMainTabs.length === 0 ? (
+              <p className="ps-consent-blocked">
+                No clinical categories are permitted under your current consent settings.{" "}
+                <Link to="/consent">Open Consent portal</Link> to allow at least one resource type.
+              </p>
+            ) : (
+              <>
+                <nav className="ps-main-tabs" aria-label="Clinical record sections">
+                  {visibleMainTabs.map((tab) => {
+                    const cnt = mainTabCount(patient, tab.id, consentScopes);
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        className={`ps-main-tab ps-main-tab--${tab.id}${activeTab === tab.id ? " ps-main-tab--active" : ""}`}
+                        onClick={() => setActiveTab(tab.id)}
+                        aria-pressed={activeTab === tab.id}
+                      >
+                        <span className="ps-main-tab-text">{tab.label}</span>
+                        <span className="ps-tab-count" aria-label={`${cnt} items`}>
+                          {cnt}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </nav>
+
+                <div className="ps-panels">
               {activeTab === "encounters" && (
                 <section className="ps-panel" aria-labelledby="ps-encounters-heading">
                   <h2 id="ps-encounters-heading" className="ps-panel-title">
@@ -710,6 +758,7 @@ export default function PatientSummary() {
                     Clinical overview
                   </h2>
                   <div className="ps-clinical-grid">
+                    {consentScopes.Observation && (
                     <div className="ps-clinical-card">
                       <h3 className="ps-clinical-card-title">Laboratory</h3>
                       {labObs.length === 0 ? (
@@ -737,6 +786,8 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
+                    )}
+                    {consentScopes.Observation && (
                     <div className="ps-clinical-card">
                       <h3 className="ps-clinical-card-title">Observations (non-lab)</h3>
                       {otherObs.length === 0 ? (
@@ -766,6 +817,8 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
+                    )}
+                    {consentScopes.Condition && (
                     <div className="ps-clinical-card">
                       <h3 className="ps-clinical-card-title">Conditions</h3>
                       {patient.conditions.length === 0 ? (
@@ -795,6 +848,8 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
+                    )}
+                    {consentScopes.DiagnosticReport && (
                     <div className="ps-clinical-card">
                       <h3 className="ps-clinical-card-title">Diagnostic reports</h3>
                       {patient.diagnosticReports.length === 0 ? (
@@ -822,6 +877,8 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
+                    )}
+                    {consentScopes.Procedure && (
                     <div className="ps-clinical-card">
                       <h3 className="ps-clinical-card-title">Procedures</h3>
                       {patient.procedures.length === 0 ? (
@@ -851,6 +908,8 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
+                    )}
+                    {consentScopes.AllergyIntolerance && (
                     <div className="ps-clinical-card">
                       <h3 className="ps-clinical-card-title">Allergies</h3>
                       {patient.allergyIntolerances.length === 0 ? (
@@ -880,6 +939,7 @@ export default function PatientSummary() {
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                 </section>
               )}
@@ -891,7 +951,7 @@ export default function PatientSummary() {
                     Medications & vaccines
                   </h2>
                   <div className="pe-med-tabs" role="tablist" aria-label="Medication and immunization resource types">
-                    {PS_MED_SUB_TABS.map((tab) => {
+                    {visibleMedSubTabs.map((tab) => {
                       const sel = medSubTab === tab.id;
                       return (
                         <button
@@ -1241,7 +1301,9 @@ export default function PatientSummary() {
                   )}
                 </section>
               )}
-            </div>
+                </div>
+              </>
+            )}
 
             <p className="ps-nav-links">
               <Link to="/patients">Patient Directory</Link>
