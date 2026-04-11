@@ -1,11 +1,17 @@
-import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import BubbleBackground from "../components/BubbleBackground";
 
 type Mode = "login" | "signup";
 
 export default function Login() {
-  const { login, register } = useAuth();
+  const navigate = useNavigate();
+  const { login, register, isAuthenticated, isHydrating } = useAuth();
+
+  useEffect(() => {
+    if (!isHydrating && isAuthenticated) navigate("/", { replace: true });
+  }, [isHydrating, isAuthenticated, navigate]);
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,11 +31,12 @@ export default function Login() {
     try {
       if (mode === "login") {
         await login(email.trim(), password);
-        setMessage("Sign-in will connect to the server in a later release. (UI only)");
       } else {
         await register(email.trim(), password, displayName.trim() || undefined);
-        setMessage("Account creation will connect to the server in a later release. (UI only)");
       }
+      navigate("/", { replace: true });
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -37,6 +44,7 @@ export default function Login() {
 
   return (
     <div className="auth-page">
+      <BubbleBackground />
       <div className="auth-split">
         <aside className="auth-panel auth-panel--left" aria-label="Promotional area">
           <div className="auth-left-placeholder">
@@ -137,7 +145,7 @@ export default function Login() {
               )}
 
               {message && (
-                <p className="auth-form-message" role="status">
+                <p className="auth-form-message auth-form-message--err" role="alert">
                   {message}
                 </p>
               )}

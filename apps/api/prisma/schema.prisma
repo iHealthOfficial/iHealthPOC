@@ -457,3 +457,15 @@ model UploadArtifact {
   ocrMessage String?
   ocrText    String?
 }
+
+/// Application login (not a FHIR resource)
+model User {
+  id           String   @id @default(uuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  /// user | admin
+  role         String   @default("user")
+}

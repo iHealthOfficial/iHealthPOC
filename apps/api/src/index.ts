@@ -4,6 +4,7 @@ import path from "node:path";
 import cors from "cors";
 import express from "express";
 import { ensureUploadsDir, webDistDir } from "./paths.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 import { registerManualRoutes } from "./routes/manual.js";
 import { registerPatientRoutes } from "./routes/patients.js";
 import { registerUploadRoutes } from "./routes/upload.js";
@@ -25,6 +26,7 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "ihealth-api" });
 });
 
+registerAuthRoutes(app);
 registerManualRoutes(app);
 registerPatientRoutes(app);
 registerUploadRoutes(app);

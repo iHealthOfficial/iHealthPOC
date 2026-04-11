@@ -1,6 +1,6 @@
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { IconFileText, IconHome, IconShield, IconUpload, IconUserPlus, IconUsers } from "./components/NavIcons";
-import { AuthProvider } from "./auth/AuthContext";
+import { AuthProvider, useAuth } from "./auth/AuthContext";
 import ConsentPortal from "./pages/ConsentPortal";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -17,6 +17,7 @@ function navTabClass(base: string) {
 
 function AppShell() {
   const { pathname } = useLocation();
+  const { isAuthenticated, isHydrating, user, logout } = useAuth();
   const isHome = pathname === "/";
   const isPatientEntry = pathname === "/patient";
   const isPatientSummary = pathname.startsWith("/patient/summary/");
@@ -54,9 +55,21 @@ function AppShell() {
               <IconFileText className="nav-tab-icon" />
               <span>About the Platform</span>
             </NavLink>
-            <NavLink to="/login" className={navTabClass("nav-tab--login")}>
-              <span>Sign in</span>
-            </NavLink>
+            {!isHydrating &&
+              (isAuthenticated ? (
+                <>
+                  <span className="site-nav-user" title={user?.email}>
+                    {user?.email}
+                  </span>
+                  <button type="button" className="nav-tab nav-tab--signout" onClick={() => logout()}>
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <NavLink to="/login" className={navTabClass("nav-tab--login")}>
+                  <span>Sign in</span>
+                </NavLink>
+              ))}
           </nav>
         </div>
       </header>
