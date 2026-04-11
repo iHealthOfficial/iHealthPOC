@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import BubbleBackground from "../components/BubbleBackground";
 
@@ -213,10 +213,6 @@ export default function Login() {
             </p>
 
             <section className="auth-contact" aria-label="Contact us" />
-
-            <p className="auth-back">
-              <Link to="/home">← Platform overview</Link>
-            </p>
           </div>
         </div>
       </div>
