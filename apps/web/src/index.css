@@ -547,6 +547,16 @@ h1 {
   --nav-shimmer: rgba(230, 120, 140, 0.45);
 }
 
+/* Feedback page accent / gradient (#e8f4ef → #2d6a5d family) */
+.nav-tab--feedback {
+  --nav-shimmer: rgba(45, 106, 93, 0.48);
+}
+
+.nav-tab--feedback:not(.nav-tab--active):hover {
+  background: rgba(45, 106, 93, 0.1);
+  color: #1a5246;
+}
+
 .nav-tab--admin {
   --nav-shimmer: rgba(160, 150, 200, 0.5);
 }
