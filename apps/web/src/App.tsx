@@ -41,6 +41,8 @@ function AppShell() {
   const isConsent = pathname === "/consent";
   const isMyHealth = pathname === "/my-health";
   const isFeedback = pathname === "/feedback";
+  const isManual = pathname === "/manual";
+  const isUpload = pathname === "/upload";
 
   const staffNav = !isAuthenticated || user?.role === "admin";
 
@@ -119,7 +121,15 @@ function AppShell() {
 
       <main
         className={
-          isMarketingHome || isEntry || isPatientEntry || isPatientSummary || isConsent || isMyHealth || isFeedback
+          isMarketingHome ||
+            isEntry ||
+            isPatientEntry ||
+            isPatientSummary ||
+            isConsent ||
+            isMyHealth ||
+            isFeedback ||
+            isManual ||
+            isUpload
             ? "site-main site-main--flush"
             : "site-main site-main--sheet"
         }

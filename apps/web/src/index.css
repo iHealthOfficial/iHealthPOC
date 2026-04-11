@@ -1452,6 +1452,169 @@ h1 {
   min-height: calc(100vh - 56px);
 }
 
+/* Platform guide (About) + Upload — same shell as home / patient entry */
+.platform-guide-page,
+.upload-page {
+  background: linear-gradient(180deg, #e3f1fb 0%, #f5f9fd 38%, #fafcfe 100%);
+  min-height: calc(100vh - 56px);
+}
+
+.platform-guide-inner,
+.upload-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  width: 100%;
+}
+
+.guide-hero {
+  margin-bottom: 2rem;
+}
+
+.guide-hero-title {
+  font-family: var(--font-heading);
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+  color: var(--text);
+}
+
+.guide-hero-lead {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 72ch;
+  font-size: 13px;
+}
+
+.guide-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .guide-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.guide-toc {
+  position: sticky;
+  top: 1rem;
+  padding: 1rem 1rem 1.1rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.guide-toc-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.guide-toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.guide-toc li {
+  margin-bottom: 0.35rem;
+}
+
+.guide-toc a {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.35rem 0;
+  border-radius: 6px;
+}
+
+.guide-toc a:hover {
+  color: var(--accent);
+}
+
+.guide-content {
+  min-width: 0;
+}
+
+.guide-block {
+  scroll-margin-top: 5rem;
+  margin-bottom: 2rem;
+}
+
+.guide-block:last-of-type {
+  margin-bottom: 0;
+}
+
+.guide-block-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 0.65rem;
+  color: var(--text);
+}
+
+.guide-block-text {
+  margin: 0 0 0.75rem;
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.guide-block-text:last-child {
+  margin-bottom: 0;
+}
+
+.guide-footer-note {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.guide-card {
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+}
+
+.guide-card-heading {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  color: var(--text);
+}
+
+.guide-muted {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.guide-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.guide-list li {
+  margin-bottom: 0.5rem;
+}
+
 /* Manual patient entry — chunk 1: same gradient shell as homepage */
 .patient-entry-page {
   background: linear-gradient(180deg, #e3f1fb 0%, #f5f9fd 38%, #fafcfe 100%);
