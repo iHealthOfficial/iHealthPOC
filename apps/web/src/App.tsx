@@ -12,6 +12,7 @@ import {
 } from "./components/NavIcons";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminNotifications from "./pages/AdminNotifications";
 import ConsentPortal from "./pages/ConsentPortal";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -145,6 +146,14 @@ function AppShell() {
             element={
               <RequireAdmin>
                 <AdminDashboard />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/notifications"
+            element={
+              <RequireAdmin>
+                <AdminNotifications />
               </RequireAdmin>
             }
           />

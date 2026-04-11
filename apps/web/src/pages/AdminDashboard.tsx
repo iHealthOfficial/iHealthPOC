@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
+import { IconBell } from "../components/NavIcons";
 
 type Summary = {
   patientCount: number;
   userCount: number;
+  feedbackUnreadCount: number;
   recentEvents: {
     id: string;
     createdAt: string;
@@ -34,10 +37,20 @@ export default function AdminDashboard() {
     void load();
   }, [load]);
 
+  const unread = data?.feedbackUnreadCount ?? 0;
+
   return (
     <div className="admin-dashboard-page">
       <div className="admin-dashboard-inner">
-        <h1 className="admin-dashboard-title">Admin dashboard</h1>
+        <div className="admin-dashboard-top">
+          <h1 className="admin-dashboard-title">Admin dashboard</h1>
+          <Link to="/admin/notifications" className="admin-dashboard-bell" aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ""}`}>
+            <IconBell className="admin-dashboard-bell-icon" />
+            {unread > 0 && (
+              <span className="admin-dashboard-bell-badge">{unread > 99 ? "99+" : unread}</span>
+            )}
+          </Link>
+        </div>
         <p className="admin-dashboard-lead">
           Overview of repository activity. Patient views for admins use merged consent from every user account
           linked to that patient (intersection of saved consent scopes).

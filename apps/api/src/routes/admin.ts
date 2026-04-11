@@ -21,9 +21,10 @@ export function registerAdminRoutes(app: Express) {
   app.get(
     "/api/admin/summary",
     adminOnly(async (_req: Request, res: Response) => {
-      const [patientCount, userCount, recentEvents] = await Promise.all([
+      const [patientCount, userCount, feedbackUnreadCount, recentEvents] = await Promise.all([
         prisma.patient.count(),
         prisma.user.count(),
+        prisma.feedbackReport.count({ where: { readAt: null } }),
         prisma.activityEvent.findMany({
           orderBy: { createdAt: "desc" },
           take: 50,
@@ -36,6 +37,7 @@ export function registerAdminRoutes(app: Express) {
       res.json({
         patientCount,
         userCount,
+        feedbackUnreadCount,
         recentEvents: recentEvents.map((e) => ({
           id: e.id,
           createdAt: e.createdAt.toISOString(),

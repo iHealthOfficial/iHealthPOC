@@ -956,6 +956,80 @@ h1 {
   margin-top: 0.5rem;
 }
 
+.my-health-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.my-health-tab {
+  padding: 0.55rem 1rem;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+}
+
+.my-health-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.my-health-tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.my-health-tab-panel {
+  min-height: 8rem;
+}
+
+.my-health-details-title {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.my-health-details-p {
+  margin: 0 0 0.85rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.my-health-details-list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.my-health-details-list li {
+  margin-bottom: 0.35rem;
+}
+
+.my-health-inline-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.my-health-inline-link:hover {
+  color: var(--text);
+}
+
 .my-health-err {
   margin: 1rem 0 0;
   color: #b42318;
@@ -1108,11 +1182,61 @@ h1 {
   padding: 2rem 1.5rem 4rem;
 }
 
+.admin-dashboard-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
 .admin-dashboard-title {
   font-family: var(--font-heading);
   font-size: var(--text-heading-size);
   font-weight: 600;
-  margin: 0 0 0.75rem;
+  margin: 0;
+  flex: 1;
+}
+
+.admin-dashboard-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.admin-dashboard-bell:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.admin-dashboard-bell-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.admin-dashboard-bell-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #b42318;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
 }
 
 .admin-dashboard-lead {
@@ -1125,6 +1249,134 @@ h1 {
   color: #b42318;
   font-size: 13px;
   margin: 1rem 0;
+}
+
+.admin-notifications-page {
+  min-height: calc(100vh - 56px);
+  background: linear-gradient(180deg, #f3f0fb 0%, #faf9fd 100%);
+}
+
+.admin-notifications-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.admin-notifications-back {
+  margin: 0 0 1rem;
+  font-size: 13px;
+}
+
+.admin-notifications-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.admin-notifications-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-heading-size);
+  font-weight: 600;
+  margin: 0;
+}
+
+.admin-notifications-markall {
+  font-size: 12px !important;
+}
+
+.admin-notifications-lead {
+  color: var(--muted);
+  margin: 0 0 1.5rem;
+  line-height: 1.55;
+}
+
+.admin-notifications-empty {
+  color: var(--muted);
+  margin: 0;
+}
+
+.admin-notifications-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-notifications-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.admin-notifications-card--unread {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(45, 106, 93, 0.15);
+}
+
+.admin-notifications-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-notifications-kind {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+.admin-notifications-kind--bug {
+  background: #fdecea;
+  color: #b42318;
+}
+
+.admin-notifications-kind--suggestion {
+  background: #e8f2ef;
+  color: var(--accent);
+}
+
+.admin-notifications-time {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.admin-notifications-item-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.admin-notifications-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+
+.admin-notifications-body {
+  margin: 0 0 0.75rem;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.admin-notifications-readbtn {
+  font-size: 12px !important;
+  padding: 0.35rem 0.75rem !important;
 }
 
 .admin-stats {

@@ -99,4 +99,39 @@ export function registerFeedbackRoutes(app: Express): void {
       });
     }),
   );
+
+  app.patch(
+    "/api/admin/feedback/:id/read",
+    adminOnly(async (req: Request, res: Response) => {
+      const id = String(req.params.id ?? "").trim();
+      if (!id) {
+        res.status(400).json({ error: "Missing id" });
+        return;
+      }
+      const existing = await prisma.feedbackReport.findUnique({ where: { id } });
+      if (!existing) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      const row = await prisma.feedbackReport.update({
+        where: { id },
+        data: { readAt: existing.readAt ?? new Date() },
+      });
+      res.json({
+        id: row.id,
+        readAt: row.readAt!.toISOString(),
+      });
+    }),
+  );
+
+  app.post(
+    "/api/admin/feedback/mark-all-read",
+    adminOnly(async (_req: Request, res: Response) => {
+      const result = await prisma.feedbackReport.updateMany({
+        where: { readAt: null },
+        data: { readAt: new Date() },
+      });
+      res.json({ updated: result.count });
+    }),
+  );
 }
