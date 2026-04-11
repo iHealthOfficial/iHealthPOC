@@ -4,6 +4,7 @@ import {
   IconGrid,
   IconHeart,
   IconHome,
+  IconMessageSquare,
   IconShield,
   IconUpload,
   IconUserPlus,
@@ -15,6 +16,7 @@ import ConsentPortal from "./pages/ConsentPortal";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Manual from "./pages/Manual";
+import Feedback from "./pages/Feedback";
 import MyHealth from "./pages/MyHealth";
 import PatientEntry from "./pages/PatientEntry";
 import PatientSummary from "./pages/PatientSummary";
@@ -35,6 +37,7 @@ function AppShell() {
   const isPatientSummary = pathname.startsWith("/patient/summary/");
   const isConsent = pathname === "/consent";
   const isMyHealth = pathname === "/my-health";
+  const isFeedback = pathname === "/feedback";
 
   const staffNav = !isAuthenticated || user?.role === "admin";
 
@@ -55,10 +58,16 @@ function AppShell() {
               <span>Upload</span>
             </NavLink>
             {isAuthenticated && (
-              <NavLink to="/my-health" className={navTabClass("nav-tab--health")}>
-                <IconHeart className="nav-tab-icon" />
-                <span>My health data</span>
-              </NavLink>
+              <>
+                <NavLink to="/my-health" className={navTabClass("nav-tab--health")}>
+                  <IconHeart className="nav-tab-icon" />
+                  <span>My health data</span>
+                </NavLink>
+                <NavLink to="/feedback" className={navTabClass("nav-tab--feedback")}>
+                  <IconMessageSquare className="nav-tab-icon" />
+                  <span>Feedback</span>
+                </NavLink>
+              </>
             )}
             {staffNav && (
               <>
@@ -107,7 +116,7 @@ function AppShell() {
 
       <main
         className={
-          isHome || isPatientEntry || isPatientSummary || isConsent || isMyHealth
+          isHome || isPatientEntry || isPatientSummary || isConsent || isMyHealth || isFeedback
             ? "site-main site-main--flush"
             : "site-main site-main--sheet"
         }
@@ -120,6 +129,14 @@ function AppShell() {
             element={
               <RequireAuth>
                 <MyHealth />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/feedback"
+            element={
+              <RequireAuth>
+                <Feedback />
               </RequireAuth>
             }
           />

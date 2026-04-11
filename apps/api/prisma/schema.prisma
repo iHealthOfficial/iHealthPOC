@@ -479,6 +479,20 @@ model User {
   consentScopesJson String?
 
   activityEvents ActivityEvent[]
+  feedbackReports FeedbackReport[]
+}
+
+/// User-submitted bug or suggestion (admin review; `readAt` for notification UX)
+model FeedbackReport {
+  id          String    @id @default(uuid())
+  createdAt   DateTime  @default(now())
+  /// bug | suggestion
+  kind        String
+  title       String
+  description String
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt      DateTime?
 }
 
 /// Audit trail / patient journey (chunk 8)

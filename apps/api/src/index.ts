@@ -9,6 +9,7 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerManualRoutes } from "./routes/manual.js";
 import { registerPatientRoutes } from "./routes/patients.js";
 import { registerUploadRoutes } from "./routes/upload.js";
+import { registerFeedbackRoutes } from "./routes/feedback.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 4000;
@@ -32,6 +33,7 @@ registerAdminRoutes(app);
 registerManualRoutes(app);
 registerPatientRoutes(app);
 registerUploadRoutes(app);
+registerFeedbackRoutes(app);
 
 /** Single-port app: serve the React SPA from apps/web/dist (same origin as /api/*). */
 if (fs.existsSync(webDistDir)) {
