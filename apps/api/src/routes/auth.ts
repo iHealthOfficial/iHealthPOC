@@ -12,8 +12,21 @@ import {
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
+/** Strip ZWSP/BOM and normalize Unicode dashes so pasted UUIDs match Zod uuid(). */
+function normalizeLinkedPatientIdInput(s: string): string {
+  return s
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, "-");
+}
+
+const patientIdAfterNormalize = z
+  .string()
+  .transform((s) => normalizeLinkedPatientIdInput(s))
+  .pipe(z.string().uuid("Invalid patient id"));
+
 const linkPatientBody = z.object({
-  patientId: z.union([z.string().uuid("Invalid patient id"), z.null()]),
+  patientId: z.union([patientIdAfterNormalize, z.null()]),
 });
 
 const registerBody = z.object({

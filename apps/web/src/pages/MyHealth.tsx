@@ -5,6 +5,16 @@ import PatientSummary from "./PatientSummary";
 
 type UnlinkedTab = "link" | "details";
 
+/** Lenient UUID check (avoids mobile browsers blocking submit; normalizes pasted text). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizePatientIdInput(raw: string): string {
+  return raw
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, "-");
+}
+
 export default function MyHealth() {
   const { user, linkPatient } = useAuth();
   const [patientIdInput, setPatientIdInput] = useState("");
@@ -17,9 +27,14 @@ export default function MyHealth() {
   async function handleLink(e: FormEvent) {
     e.preventDefault();
     setErr(null);
-    const id = patientIdInput.trim();
+    const id = normalizePatientIdInput(patientIdInput);
+    if (patientIdInput !== id) setPatientIdInput(id);
     if (!id) {
       setErr("Enter a patient id.");
+      return;
+    }
+    if (!UUID_RE.test(id)) {
+      setErr("Enter a valid patient id in UUID form (8-4-4-4-12 hex digits with hyphens).");
       return;
     }
     setBusy(true);
@@ -96,7 +111,7 @@ export default function MyHealth() {
 
         {tab === "link" && (
           <div className="my-health-tab-panel" role="tabpanel">
-            <form className="my-health-form" onSubmit={handleLink}>
+            <form className="my-health-form" onSubmit={handleLink} noValidate>
               <label className="my-health-label" htmlFor="my-health-pid">
                 Patient id
               </label>
@@ -104,7 +119,11 @@ export default function MyHealth() {
                 id="my-health-pid"
                 className="my-health-input"
                 type="text"
+                inputMode="text"
                 autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                 value={patientIdInput}
                 onChange={(e) => setPatientIdInput(e.target.value)}
