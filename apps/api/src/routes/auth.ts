@@ -5,6 +5,10 @@ import { signUserToken } from "../auth/jwt.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
+const linkPatientBody = z.object({
+  patientId: z.union([z.string().uuid("Invalid patient id"), z.null()]),
+});
+
 const registerBody = z.object({
   email: z.string().trim().email("Invalid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -16,12 +20,19 @@ const loginBody = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-function publicUser(u: { id: string; email: string; role: string; displayName: string | null }) {
+function publicUser(u: {
+  id: string;
+  email: string;
+  role: string;
+  displayName: string | null;
+  linkedPatientId: string | null;
+}) {
   return {
     id: u.id,
     email: u.email,
     role: u.role as "user" | "admin",
     displayName: u.displayName ?? undefined,
+    linkedPatientId: u.linkedPatientId ?? undefined,
   };
 }
 
@@ -85,6 +96,31 @@ export function registerAuthRoutes(app: Express) {
       res.status(401).json({ error: "User not found" });
       return;
     }
+    res.json({ user: publicUser(user) });
+  });
+
+  app.put("/api/me/linked-patient", requireAuth, async (req: Request, res: Response) => {
+    const parsed = linkPatientBody.safeParse(req.body);
+    if (!parsed.success) {
+      const first = parsed.error.flatten().fieldErrors.patientId?.[0] ?? "Invalid input";
+      res.status(400).json({ error: first });
+      return;
+    }
+    const { patientId } = parsed.data;
+    const uid = req.auth!.userId;
+
+    if (patientId) {
+      const p = await prisma.patient.findUnique({ where: { id: patientId } });
+      if (!p) {
+        res.status(404).json({ error: "Patient not found" });
+        return;
+      }
+    }
+
+    const user = await prisma.user.update({
+      where: { id: uid },
+      data: { linkedPatientId: patientId },
+    });
     res.json({ user: publicUser(user) });
   });
 }

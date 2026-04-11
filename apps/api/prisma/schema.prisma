@@ -50,6 +50,7 @@ model Patient {
   immunizations            Immunization[]
   organizations            Organization[]
   familyMemberHistories    FamilyMemberHistory[]
+  linkedUsers                User[]
 }
 
 /// FHIR: FamilyMemberHistory — subject is always the related Patient (this record)
@@ -468,4 +469,8 @@ model User {
   displayName  String?
   /// user | admin
   role         String   @default("user")
+
+  /// Optional FHIR Patient this account may view as “my health data”
+  linkedPatientId String?
+  linkedPatient   Patient? @relation(fields: [linkedPatientId], references: [id], onDelete: SetNull)
 }

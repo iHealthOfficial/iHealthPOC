@@ -543,6 +543,14 @@ h1 {
   --nav-shimmer: rgba(110, 220, 235, 0.55);
 }
 
+.nav-tab--health {
+  --nav-shimmer: rgba(230, 120, 140, 0.45);
+}
+
+.nav-tab--admin {
+  --nav-shimmer: rgba(160, 150, 200, 0.5);
+}
+
 .nav-tab--login {
   --nav-shimmer: rgba(140, 140, 150, 0.45);
   margin-left: 0.25rem;
@@ -894,6 +902,109 @@ h1 {
     box-shadow: none;
     flex: 1;
   }
+}
+
+/* My health — link patient (chunk 6) */
+.my-health-page {
+  background: linear-gradient(180deg, #e3f1fb 0%, #f5f9fd 38%, #fafcfe 100%);
+  min-height: calc(100vh - 56px);
+}
+
+.my-health-inner {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.my-health-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-heading-size);
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.my-health-lead {
+  color: var(--muted);
+  margin: 0 0 1.5rem;
+  line-height: 1.5;
+}
+
+.my-health-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.my-health-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.my-health-input {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 13px;
+  font-family: var(--mono);
+}
+
+.my-health-submit {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+}
+
+.my-health-err {
+  margin: 1rem 0 0;
+  color: #b42318;
+  font-size: 12px;
+}
+
+.my-health-linked-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(90deg, #e8f4ef, #f0f7fb);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.my-health-linked-text {
+  color: var(--muted);
+}
+
+.my-health-unlink {
+  font-size: 12px !important;
+  padding: 0.35rem 0.75rem !important;
+}
+
+.admin-dashboard-page {
+  min-height: calc(100vh - 56px);
+  background: linear-gradient(180deg, #f3f0fb 0%, #faf9fd 100%);
+}
+
+.admin-dashboard-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.admin-dashboard-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-heading-size);
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.admin-dashboard-lead {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.55;
 }
 
 /* Homepage */

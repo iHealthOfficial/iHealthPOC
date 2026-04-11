@@ -5,6 +5,7 @@ export type AuthUser = {
   email: string;
   role: "user" | "admin";
   displayName?: string;
+  linkedPatientId?: string;
 };
 
 const TOKEN_KEY = "ihealth-auth-token-v1";
@@ -16,6 +17,8 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
+  linkPatient: (patientId: string | null) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -28,6 +31,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isHydrating, setIsHydrating] = useState(true);
 
+  const refreshUser = useCallback(async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setUser(null);
+      return;
+    }
+    const res = await fetch("/api/auth/me", { headers: authHeaders(token) });
+    const data = (await res.json()) as { error?: string; user?: AuthUser };
+    if (!res.ok || !data.user) {
+      localStorage.removeItem(TOKEN_KEY);
+      setUser(null);
+      return;
+    }
+    setUser(data.user);
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
@@ -36,20 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     void (async () => {
       try {
-        const res = await fetch("/api/auth/me", { headers: authHeaders(token) });
-        const data = (await res.json()) as { error?: string; user?: AuthUser };
-        if (!res.ok || !data.user) {
-          localStorage.removeItem(TOKEN_KEY);
-          return;
-        }
-        setUser(data.user);
+        await refreshUser();
       } catch {
         localStorage.removeItem(TOKEN_KEY);
       } finally {
         setIsHydrating(false);
       }
     })();
-  }, []);
+  }, [refreshUser]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch("/api/auth/login", {
@@ -82,6 +95,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const linkPatient = useCallback(async (patientId: string | null) => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) throw new Error("Not signed in");
+    const res = await fetch("/api/me/linked-patient", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders(token) },
+      body: JSON.stringify({ patientId }),
+    });
+    const data = (await res.json()) as { error?: string; user?: AuthUser };
+    if (!res.ok) throw new Error(data.error || "Could not update patient link");
+    if (!data.user) throw new Error("Invalid response");
+    setUser(data.user);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -90,8 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      refreshUser,
+      linkPatient,
     }),
-    [user, isHydrating, login, register, logout],
+    [user, isHydrating, login, register, logout, refreshUser, linkPatient],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

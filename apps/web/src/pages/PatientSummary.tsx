@@ -366,8 +366,15 @@ function emptyArr<T>(x: T[] | undefined): T[] {
   return Array.isArray(x) ? x : [];
 }
 
-export default function PatientSummary() {
-  const { id } = useParams<{ id: string }>();
+export default function PatientSummary({
+  embeddedPatientId,
+  myHealthMode = false,
+}: {
+  embeddedPatientId?: string;
+  myHealthMode?: boolean;
+} = {}) {
+  const params = useParams<{ id: string }>();
+  const id = (embeddedPatientId ?? params.id)?.trim() ?? "";
   const consentScopes = useConsentScopes(id?.trim() ?? "");
   const [patient, setPatient] = useState<PatientFull | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "notfound" | "error">("loading");
@@ -381,7 +388,9 @@ export default function PatientSummary() {
   useEffect(() => {
     if (!id?.trim()) {
       setPhase("error");
-      setErrorMessage("Missing patient id in URL.");
+      setErrorMessage(
+        myHealthMode ? "No patient record is linked to your account yet." : "Missing patient id in URL.",
+      );
       return;
     }
 
@@ -429,7 +438,7 @@ export default function PatientSummary() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, myHealthMode]);
 
   const sortedEncounters = useMemo(() => {
     if (!patient?.encounters) return [];
@@ -504,8 +513,17 @@ export default function PatientSummary() {
         <div className="patient-summary-inner">
           <p className="patient-summary-lead">Patient not found.</p>
           <p className="patient-summary-muted">
-            Check the id or return to the{" "}
-            <Link to="/patients">Patient Directory</Link>.
+            {myHealthMode ? (
+              <>
+                Check your linked id or return to{" "}
+                <Link to="/my-health">My health data</Link>.
+              </>
+            ) : (
+              <>
+                Check the id or return to the{" "}
+                <Link to="/patients">Patient Directory</Link>.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -519,7 +537,11 @@ export default function PatientSummary() {
           <p className="patient-summary-lead">Could not load patient.</p>
           <p className="patient-summary-muted">{errorMessage}</p>
           <p className="patient-summary-muted">
-            <Link to="/patients">Back to Patient Directory</Link>
+            {myHealthMode ? (
+              <Link to="/my-health">Back to My health data</Link>
+            ) : (
+              <Link to="/patients">Back to Patient Directory</Link>
+            )}
           </p>
         </div>
       </div>
@@ -558,7 +580,7 @@ export default function PatientSummary() {
             <path d="M2 17l10 5 10-5" />
             <path d="M2 12l10 5 10-5" />
           </svg>
-          <span className="ps-top-label">FHIR patient record</span>
+          <span className="ps-top-label">{myHealthMode ? "My health data" : "FHIR patient record"}</span>
           <span className="ps-fhir-chip">R4 · FHIR native</span>
           <button type="button" className="btn btn-ghost ps-fhir-bundle-btn" onClick={() => void openFhirBundle()}>
             FHIR bundle
@@ -566,11 +588,27 @@ export default function PatientSummary() {
         </div>
 
         <nav className="ps-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/patients">Patient Directory</Link>
-          <span className="ps-breadcrumb-sep" aria-hidden>
-            /
-          </span>
-          <span className="ps-breadcrumb-current">{name}</span>
+          {myHealthMode ? (
+            <>
+              <Link to="/">Home</Link>
+              <span className="ps-breadcrumb-sep" aria-hidden>
+                /
+              </span>
+              <span className="ps-breadcrumb-current">My health data</span>
+              <span className="ps-breadcrumb-sep" aria-hidden>
+                /
+              </span>
+              <span className="ps-breadcrumb-current">{name}</span>
+            </>
+          ) : (
+            <>
+              <Link to="/patients">Patient Directory</Link>
+              <span className="ps-breadcrumb-sep" aria-hidden>
+                /
+              </span>
+              <span className="ps-breadcrumb-current">{name}</span>
+            </>
+          )}
         </nav>
 
         <div className="ps-patient-header">
@@ -1306,9 +1344,19 @@ export default function PatientSummary() {
             )}
 
             <p className="ps-nav-links">
-              <Link to="/patients">Patient Directory</Link>
-              {" · "}
-              <Link to="/patient">Manual Patient Entry</Link>
+              {myHealthMode ? (
+                <>
+                  <Link to="/consent">Consent portal</Link>
+                  {" · "}
+                  <Link to="/">Home</Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/patients">Patient Directory</Link>
+                  {" · "}
+                  <Link to="/patient">Manual Patient Entry</Link>
+                </>
+              )}
             </p>
           </div>
         </div>

@@ -1,14 +1,26 @@
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { IconFileText, IconHome, IconShield, IconUpload, IconUserPlus, IconUsers } from "./components/NavIcons";
+import {
+  IconFileText,
+  IconGrid,
+  IconHeart,
+  IconHome,
+  IconShield,
+  IconUpload,
+  IconUserPlus,
+  IconUsers,
+} from "./components/NavIcons";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
+import AdminDashboard from "./pages/AdminDashboard";
 import ConsentPortal from "./pages/ConsentPortal";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Manual from "./pages/Manual";
+import MyHealth from "./pages/MyHealth";
 import PatientEntry from "./pages/PatientEntry";
 import PatientSummary from "./pages/PatientSummary";
 import Patients from "./pages/Patients";
 import Upload from "./pages/Upload";
+import { RequireAdmin, RequireAuth, RequireStaff } from "./routeGuards";
 
 function navTabClass(base: string) {
   return ({ isActive }: { isActive: boolean }) =>
@@ -22,6 +34,9 @@ function AppShell() {
   const isPatientEntry = pathname === "/patient";
   const isPatientSummary = pathname.startsWith("/patient/summary/");
   const isConsent = pathname === "/consent";
+  const isMyHealth = pathname === "/my-health";
+
+  const staffNav = !isAuthenticated || user?.role === "admin";
 
   return (
     <div className="app-root">
@@ -39,14 +54,24 @@ function AppShell() {
               <IconUpload className="nav-tab-icon" />
               <span>Upload</span>
             </NavLink>
-            <NavLink to="/patients" className={navTabClass("nav-tab--directory")}>
-              <IconUsers className="nav-tab-icon" />
-              <span>Patient Directory</span>
-            </NavLink>
-            <NavLink to="/patient" className={navTabClass("nav-tab--manual-entry")}>
-              <IconUserPlus className="nav-tab-icon" />
-              <span>Manual Patient Entry</span>
-            </NavLink>
+            {isAuthenticated && (
+              <NavLink to="/my-health" className={navTabClass("nav-tab--health")}>
+                <IconHeart className="nav-tab-icon" />
+                <span>My health data</span>
+              </NavLink>
+            )}
+            {staffNav && (
+              <>
+                <NavLink to="/patients" className={navTabClass("nav-tab--directory")}>
+                  <IconUsers className="nav-tab-icon" />
+                  <span>Patient Directory</span>
+                </NavLink>
+                <NavLink to="/patient" className={navTabClass("nav-tab--manual-entry")}>
+                  <IconUserPlus className="nav-tab-icon" />
+                  <span>Manual Patient Entry</span>
+                </NavLink>
+              </>
+            )}
             <NavLink to="/consent" className={navTabClass("nav-tab--consent")}>
               <IconShield className="nav-tab-icon" />
               <span>Consent Portal</span>
@@ -55,6 +80,12 @@ function AppShell() {
               <IconFileText className="nav-tab-icon" />
               <span>About the Platform</span>
             </NavLink>
+            {user?.role === "admin" && (
+              <NavLink to="/admin" className={navTabClass("nav-tab--admin")}>
+                <IconGrid className="nav-tab-icon" />
+                <span>Admin</span>
+              </NavLink>
+            )}
             {!isHydrating &&
               (isAuthenticated ? (
                 <>
@@ -76,15 +107,47 @@ function AppShell() {
 
       <main
         className={
-          isHome || isPatientEntry || isPatientSummary || isConsent ? "site-main site-main--flush" : "site-main site-main--sheet"
+          isHome || isPatientEntry || isPatientSummary || isConsent || isMyHealth
+            ? "site-main site-main--flush"
+            : "site-main site-main--sheet"
         }
       >
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/upload" element={<Upload />} />
-          <Route path="/patients" element={<Patients />} />
+          <Route
+            path="/my-health"
+            element={
+              <RequireAuth>
+                <MyHealth />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin>
+                <AdminDashboard />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/patients"
+            element={
+              <RequireStaff>
+                <Patients />
+              </RequireStaff>
+            }
+          />
           <Route path="/patient/summary/:id" element={<PatientSummary />} />
-          <Route path="/patient" element={<PatientEntry />} />
+          <Route
+            path="/patient"
+            element={
+              <RequireStaff>
+                <PatientEntry />
+              </RequireStaff>
+            }
+          />
           <Route path="/consent" element={<ConsentPortal />} />
           <Route path="/manual" element={<Manual />} />
         </Routes>
