@@ -17,6 +17,7 @@ import ConsentPortal from "./pages/ConsentPortal";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Manual from "./pages/Manual";
+import EntryRedirect from "./pages/EntryRedirect";
 import Feedback from "./pages/Feedback";
 import MyHealth from "./pages/MyHealth";
 import PatientEntry from "./pages/PatientEntry";
@@ -33,7 +34,8 @@ function navTabClass(base: string) {
 function AppShell() {
   const { pathname } = useLocation();
   const { isAuthenticated, isHydrating, user, logout } = useAuth();
-  const isHome = pathname === "/";
+  const isMarketingHome = pathname === "/home";
+  const isEntry = pathname === "/";
   const isPatientEntry = pathname === "/patient";
   const isPatientSummary = pathname.startsWith("/patient/summary/");
   const isConsent = pathname === "/consent";
@@ -50,9 +52,9 @@ function AppShell() {
             Patient Healthcare Platform
           </Link>
           <nav className="site-nav" aria-label="Primary">
-            <NavLink to="/" end className={navTabClass("nav-tab--home")}>
+            <NavLink to="/home" className={navTabClass("nav-tab--home")}>
               <IconHome className="nav-tab-icon" />
-              <span>Home</span>
+              <span>Overview</span>
             </NavLink>
             <NavLink to="/upload" className={navTabClass("nav-tab--upload")}>
               <IconUpload className="nav-tab-icon" />
@@ -117,13 +119,14 @@ function AppShell() {
 
       <main
         className={
-          isHome || isPatientEntry || isPatientSummary || isConsent || isMyHealth || isFeedback
+          isMarketingHome || isEntry || isPatientEntry || isPatientSummary || isConsent || isMyHealth || isFeedback
             ? "site-main site-main--flush"
             : "site-main site-main--sheet"
         }
       >
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<EntryRedirect />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/upload" element={<Upload />} />
           <Route
             path="/my-health"

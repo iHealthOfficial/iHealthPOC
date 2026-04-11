@@ -5,6 +5,9 @@ import BubbleBackground from "../components/BubbleBackground";
 
 type Mode = "login" | "signup";
 
+/** Avoid relying on `type="email"` built‑in validation (mobile browsers can show “pattern” errors for some addresses). */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function Login() {
   const navigate = useNavigate();
   const { login, register, isAuthenticated, isHydrating } = useAuth();
@@ -23,6 +26,27 @@ export default function Login() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setMessage(null);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setMessage("Email is required.");
+      return;
+    }
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setMessage("Enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setMessage("Password is required.");
+      return;
+    }
+    if (mode === "signup" && !confirmPassword) {
+      setMessage("Confirm your password.");
+      return;
+    }
+    if (mode === "signup" && password.length < 8) {
+      setMessage("Password must be at least 8 characters.");
+      return;
+    }
     if (mode === "signup" && password !== confirmPassword) {
       setMessage("Passwords do not match.");
       return;
@@ -30,9 +54,9 @@ export default function Login() {
     setSubmitting(true);
     try {
       if (mode === "login") {
-        await login(email.trim(), password);
+        await login(trimmedEmail, password);
       } else {
-        await register(email.trim(), password, displayName.trim() || undefined);
+        await register(trimmedEmail, password, displayName.trim() || undefined);
       }
       navigate("/", { replace: true });
     } catch (err) {
@@ -106,10 +130,13 @@ export default function Login() {
                 <span className="auth-label">Email</span>
                 <input
                   className="auth-input"
-                  type="email"
+                  type="text"
                   name="email"
+                  inputMode="email"
                   autoComplete="email"
-                  required
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -122,7 +149,6 @@ export default function Login() {
                   type="password"
                   name="password"
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -136,7 +162,6 @@ export default function Login() {
                     type="password"
                     name="confirmPassword"
                     autoComplete="new-password"
-                    required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
@@ -190,7 +215,7 @@ export default function Login() {
             <section className="auth-contact" aria-label="Contact us" />
 
             <p className="auth-back">
-              <Link to="/">← Back to home</Link>
+              <Link to="/home">← Platform overview</Link>
             </p>
           </div>
         </div>

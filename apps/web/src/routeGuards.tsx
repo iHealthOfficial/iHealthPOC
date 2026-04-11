@@ -28,7 +28,7 @@ export function RequireStaff({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  if (isAuthenticated && user?.role === "user") return <Navigate to="/" replace />;
+  if (isAuthenticated && user?.role === "user") return <Navigate to="/my-health" replace />;
   return <>{children}</>;
 }
 
@@ -42,6 +42,6 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
     );
   }
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role !== "admin") return <Navigate to="/" replace />;
+  if (user?.role !== "admin") return <Navigate to="/my-health" replace />;
   return <>{children}</>;
 }

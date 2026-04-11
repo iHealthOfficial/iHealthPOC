@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { api } from "../api";
 
 type FeedbackKind = "bug" | "suggestion";
 
@@ -26,20 +27,22 @@ export default function Feedback() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/feedback", {
+      const data = await api<{ createdAt?: string }>("/api/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind, title: t, description: d }),
       });
-      const data = (await res.json()) as { error?: string; createdAt?: string };
-      if (!res.ok) {
-        throw new Error(data.error || "Could not send feedback");
-      }
       setSuccessAt(data.createdAt ?? new Date().toISOString());
       setTitle("");
       setDescription("");
     } catch (x) {
-      setErr(x instanceof Error ? x.message : "Something went wrong");
+      let msg = x instanceof Error ? x.message : "Something went wrong";
+      try {
+        const j = JSON.parse(msg) as { error?: string };
+        if (j.error) msg = j.error;
+      } catch {
+        /* plain text */
+      }
+      setErr(msg);
     } finally {
       setSubmitting(false);
     }
