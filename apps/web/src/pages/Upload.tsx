@@ -95,44 +95,47 @@ export default function Upload() {
   };
 
   return (
-    <>
-      <h1>Upload</h1>
-      <p className="lead">
-        Files go to <code>uploads/</code>.         Each upload runs a <strong>local ClamAV</strong> scan when{" "}
-        <code>clamscan</code> is installed, then <strong>local OCR / text extraction</strong>{" "}
-        (Tesseract.js for images, embedded text for PDFs). No paid APIs.
-      </p>
+    <div className="upload-page">
+      <div className="upload-inner">
+        <header className="guide-hero">
+          <h1 className="guide-hero-title">Upload</h1>
+          <p className="guide-hero-lead">
+            Send documents into the platform. Files are stored under <code>uploads/</code>. Each upload runs a{" "}
+            <strong>local ClamAV</strong> scan when <code>clamscan</code> is installed, then{" "}
+            <strong>local OCR / text extraction</strong> (Tesseract.js for images, embedded text for PDFs). No paid APIs.
+          </p>
+        </header>
 
-      {message && (
-        <div className={`msg ${message.type === "ok" ? "ok" : "err"}`}>{message.text}</div>
-      )}
+        {message && (
+          <div className={`msg ${message.type === "ok" ? "ok" : "err"}`}>{message.text}</div>
+        )}
 
-      <div className="card">
-        <h2>File</h2>
-        <div className="field-grid">
-          <div className="field" style={{ gridColumn: "1 / -1" }}>
-            <label htmlFor="pid">Patient ID (optional)</label>
-            <input
-              id="pid"
-              value={patientId}
-              onChange={(e) => setPatientId(e.target.value)}
-              placeholder="uuid after patient entry"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="f">Choose file</label>
-            <input id="f" type="file" disabled={busy} onChange={onFile} />
+        <div className="card guide-card">
+          <h2 className="guide-card-heading">File</h2>
+          <div className="field-grid">
+            <div className="field" style={{ gridColumn: "1 / -1" }}>
+              <label htmlFor="pid">Patient ID (optional)</label>
+              <input
+                id="pid"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                placeholder="uuid after patient entry"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="f">Choose file</label>
+              <input id="f" type="file" disabled={busy} onChange={onFile} />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="card">
-        <h2>Recent uploads</h2>
-        <button type="button" className="btn btn-ghost" onClick={refresh} style={{ marginBottom: "1rem" }}>
-          Refresh list
-        </button>
-        <div className="row-list">
-          {recent.length === 0 && <p className="lead">No uploads yet.</p>}
+        <div className="card guide-card">
+          <h2 className="guide-card-heading">Recent uploads</h2>
+          <button type="button" className="btn btn-ghost" onClick={refresh} style={{ marginBottom: "1rem" }}>
+            Refresh list
+          </button>
+          <div className="row-list">
+            {recent.length === 0 && <p className="guide-muted">No uploads yet.</p>}
           {recent.map((u) => (
             <div key={u.id} className="row-item">
               <div>
@@ -163,14 +166,14 @@ export default function Upload() {
                 </a>
               </div>
             </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {(detail || detailLoading) && (
-        <div className="card">
-          <h2>Extracted text &amp; processing notes</h2>
-          {detailLoading && <p className="lead">Loading…</p>}
+        {(detail || detailLoading) && (
+          <div className="card guide-card">
+            <h2 className="guide-card-heading">Extracted text &amp; processing notes</h2>
+            {detailLoading && <p className="guide-muted">Loading…</p>}
           {detail && !detailLoading && (
             <>
               <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
@@ -202,12 +205,12 @@ export default function Upload() {
               </button>
             </>
           )}
-        </div>
-      )}
+          </div>
+        )}
 
-      <div className="card">
-        <h2>Local setup tips</h2>
-        <ul className="lead" style={{ margin: 0, paddingLeft: "1.25rem" }}>
+        <div className="card guide-card">
+          <h2 className="guide-card-heading">Local setup tips</h2>
+          <ul className="guide-list">
           <li>
             <strong>ClamAV (optional):</strong> install so <code>clamscan</code> runs; on Windows, default path is
             tried. Otherwise scan shows <code>skipped</code>.
@@ -220,8 +223,9 @@ export default function Upload() {
             <strong>PDFs:</strong> only text inside the PDF is extracted; scanned PDFs need an image workflow (not
             included yet).
           </li>
-        </ul>
+          </ul>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

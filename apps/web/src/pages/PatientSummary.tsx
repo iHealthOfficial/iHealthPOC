@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../auth/AuthContext";
 import type { ConsentResourceType } from "../consent/consentTypes";
 import {
   isMainTabConsentVisible,
@@ -366,8 +367,16 @@ function emptyArr<T>(x: T[] | undefined): T[] {
   return Array.isArray(x) ? x : [];
 }
 
-export default function PatientSummary() {
-  const { id } = useParams<{ id: string }>();
+export default function PatientSummary({
+  embeddedPatientId,
+  myHealthMode = false,
+}: {
+  embeddedPatientId?: string;
+  myHealthMode?: boolean;
+} = {}) {
+  const { user } = useAuth();
+  const params = useParams<{ id: string }>();
+  const id = (embeddedPatientId ?? params.id)?.trim() ?? "";
   const consentScopes = useConsentScopes(id?.trim() ?? "");
   const [patient, setPatient] = useState<PatientFull | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "notfound" | "error">("loading");
@@ -378,10 +387,44 @@ export default function PatientSummary() {
   const [fhirJson, setFhirJson] = useState("");
   const [fhirLoading, setFhirLoading] = useState(false);
 
+  type JourneyEvent = {
+    id: string;
+    createdAt: string;
+    action: string;
+    detail: string;
+    actorEmail: string | null;
+  };
+  const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[] | null>(null);
+
+  const showJourney = user?.role === "admin" && !myHealthMode;
+
+  useEffect(() => {
+    if (!id || myHealthMode || user?.role !== "admin") {
+      setJourneyEvents(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api<{ events: JourneyEvent[] }>(
+          `/api/admin/patients/${encodeURIComponent(id)}/activity`,
+        );
+        if (!cancelled) setJourneyEvents(data.events);
+      } catch {
+        if (!cancelled) setJourneyEvents([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, myHealthMode, user?.role]);
+
   useEffect(() => {
     if (!id?.trim()) {
       setPhase("error");
-      setErrorMessage("Missing patient id in URL.");
+      setErrorMessage(
+        myHealthMode ? "No patient record is linked to your account yet." : "Missing patient id in URL.",
+      );
       return;
     }
 
@@ -391,8 +434,14 @@ export default function PatientSummary() {
 
     void (async () => {
       try {
-        const p = await api<PatientFull>(`/api/patients/${encodeURIComponent(id)}`);
+        const path =
+          user?.role === "admin"
+            ? `/api/admin/patients/${encodeURIComponent(id)}`
+            : `/api/patients/${encodeURIComponent(id)}`;
+        const raw = await api<PatientFull & { _adminConsent?: unknown }>(path);
         if (cancelled) return;
+        const { _adminConsent: _ac, ...p } = raw;
+        void _ac;
         setPatient({
           ...p,
           encounters: emptyArr(p.encounters),
@@ -429,7 +478,7 @@ export default function PatientSummary() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, myHealthMode, user?.role]);
 
   const sortedEncounters = useMemo(() => {
     if (!patient?.encounters) return [];
@@ -504,8 +553,17 @@ export default function PatientSummary() {
         <div className="patient-summary-inner">
           <p className="patient-summary-lead">Patient not found.</p>
           <p className="patient-summary-muted">
-            Check the id or return to the{" "}
-            <Link to="/patients">Patient Directory</Link>.
+            {myHealthMode ? (
+              <>
+                Check your linked id or return to{" "}
+                <Link to="/my-health">My health data</Link>.
+              </>
+            ) : (
+              <>
+                Check the id or return to the{" "}
+                <Link to="/patients">Patient Directory</Link>.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -519,7 +577,11 @@ export default function PatientSummary() {
           <p className="patient-summary-lead">Could not load patient.</p>
           <p className="patient-summary-muted">{errorMessage}</p>
           <p className="patient-summary-muted">
-            <Link to="/patients">Back to Patient Directory</Link>
+            {myHealthMode ? (
+              <Link to="/my-health">Back to My health data</Link>
+            ) : (
+              <Link to="/patients">Back to Patient Directory</Link>
+            )}
           </p>
         </div>
       </div>
@@ -527,6 +589,31 @@ export default function PatientSummary() {
   }
 
   if (!patient) return null;
+
+  function journeyLabelShort(ev: JourneyEvent): string {
+    const map: Record<string, string> = {
+      auth_login: "User signed in",
+      auth_register: "Account signup completed",
+      consent_saved: "Consent preferences saved",
+      patient_link: "Account linked to record",
+      patient_unlink: "Patient record unlinked",
+      patient_ingested: "New patient record created",
+      patient_updated: "Clinical data updated",
+    };
+    return map[ev.action] ?? ev.detail;
+  }
+
+  function formatJourneyTime(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
 
   const name = displayName(patient);
   const initials = patientInitials(patient);
@@ -540,7 +627,8 @@ export default function PatientSummary() {
 
   return (
     <div className="patient-summary-app">
-      <div className="patient-summary-inner">
+      <div className={`patient-summary-inner${showJourney ? " patient-summary-inner--with-journey" : ""}`}>
+        <div className="ps-admin-main">
         <div className="ps-top-bar">
           <svg
             className="ps-top-icon"
@@ -558,7 +646,7 @@ export default function PatientSummary() {
             <path d="M2 17l10 5 10-5" />
             <path d="M2 12l10 5 10-5" />
           </svg>
-          <span className="ps-top-label">FHIR patient record</span>
+          <span className="ps-top-label">{myHealthMode ? "My health data" : "FHIR patient record"}</span>
           <span className="ps-fhir-chip">R4 · FHIR native</span>
           <button type="button" className="btn btn-ghost ps-fhir-bundle-btn" onClick={() => void openFhirBundle()}>
             FHIR bundle
@@ -566,11 +654,27 @@ export default function PatientSummary() {
         </div>
 
         <nav className="ps-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/patients">Patient Directory</Link>
-          <span className="ps-breadcrumb-sep" aria-hidden>
-            /
-          </span>
-          <span className="ps-breadcrumb-current">{name}</span>
+          {myHealthMode ? (
+            <>
+              <Link to="/">Home</Link>
+              <span className="ps-breadcrumb-sep" aria-hidden>
+                /
+              </span>
+              <span className="ps-breadcrumb-current">My health data</span>
+              <span className="ps-breadcrumb-sep" aria-hidden>
+                /
+              </span>
+              <span className="ps-breadcrumb-current">{name}</span>
+            </>
+          ) : (
+            <>
+              <Link to="/patients">Patient Directory</Link>
+              <span className="ps-breadcrumb-sep" aria-hidden>
+                /
+              </span>
+              <span className="ps-breadcrumb-current">{name}</span>
+            </>
+          )}
         </nav>
 
         <div className="ps-patient-header">
@@ -1306,12 +1410,55 @@ export default function PatientSummary() {
             )}
 
             <p className="ps-nav-links">
-              <Link to="/patients">Patient Directory</Link>
-              {" · "}
-              <Link to="/patient">Manual Patient Entry</Link>
+              {myHealthMode ? (
+                <>
+                  <Link to="/consent">Consent portal</Link>
+                  {" · "}
+                  <Link to="/">Home</Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/patients">Patient Directory</Link>
+                  {" · "}
+                  <Link to="/patient">Manual Patient Entry</Link>
+                </>
+              )}
             </p>
           </div>
         </div>
+        </div>
+
+        {showJourney && (
+          <aside className="ps-journey-rail" aria-label="Patient journey timeline">
+            <h2 className="ps-journey-title">Patient journey</h2>
+            <p className="ps-journey-hint">Key events for this record and linked accounts (oldest first).</p>
+            {journeyEvents === null ? (
+              <p className="ps-journey-loading">Loading timeline…</p>
+            ) : journeyEvents.length === 0 ? (
+              <p className="ps-journey-empty">No journey events yet.</p>
+            ) : (
+              <ul className="ps-journey-list">
+                {journeyEvents.map((ev, idx) => (
+                  <li key={ev.id} className="ps-journey-item">
+                    <div className="ps-journey-track">
+                      <span
+                        className={`ps-journey-dot${idx === 0 ? " ps-journey-dot--first" : ""}`}
+                        aria-hidden
+                      />
+                      {idx < journeyEvents.length - 1 && <span className="ps-journey-line" aria-hidden />}
+                    </div>
+                    <div className="ps-journey-body">
+                      <time className="ps-journey-time" dateTime={ev.createdAt}>
+                        {formatJourneyTime(ev.createdAt)}
+                      </time>
+                      <p className="ps-journey-desc">{journeyLabelShort(ev)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
+        )}
 
         {fhirOpen && (
           <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="FHIR bundle">

@@ -5,6 +5,7 @@ import {
   CONSENT_RESOURCE_TYPES,
   type ConsentResourceType,
 } from "../consent/consentTypes";
+import { useAuth } from "../auth/AuthContext";
 import {
   countPermitted,
   countRestricted,
@@ -109,6 +110,7 @@ export default function ConsentPortal() {
     () => new Set(PENDING_REQUESTS.map((p) => p.id)),
   );
   const { toast, showToast } = useToast();
+  const { user, refreshUser } = useAuth();
 
   const permitted = useMemo(() => countPermitted(scopes), [scopes]);
   const restricted = useMemo(() => countRestricted(scopes), [scopes]);
@@ -133,12 +135,36 @@ export default function ConsentPortal() {
     showToast({ msg: "All resource types are now permitted (not saved until you click Save).", kind: "ok" });
   }, [showToast]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     saveConsentScopes(scopes);
     const at = loadConsentSavedAt();
     setLastSavedAt(at);
-    showToast({ msg: "Consent preferences saved. Patient summary will reflect these choices.", kind: "ok" });
-  }, [scopes, showToast]);
+    let msg = "Consent preferences saved. Patient summary will reflect these choices.";
+    if (user) {
+      try {
+        const token = localStorage.getItem("ihealth-auth-token-v1");
+        const res = await fetch("/api/me/consent-scopes", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ scopes }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || "Could not sync consent to server");
+        await refreshUser();
+        msg += " Synced to your account (used for admin consent views).";
+      } catch (e) {
+        showToast({
+          msg: e instanceof Error ? e.message : "Could not sync consent to server",
+          kind: "err",
+        });
+        return;
+      }
+    }
+    showToast({ msg, kind: "ok" });
+  }, [scopes, showToast, user, refreshUser]);
 
   const dismissPending = useCallback(
     (id: string, approved: boolean) => {
