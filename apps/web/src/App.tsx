@@ -1,7 +1,9 @@
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { IconFileText, IconHome, IconShield, IconUpload, IconUserPlus, IconUsers } from "./components/NavIcons";
+import { AuthProvider } from "./auth/AuthContext";
 import ConsentPortal from "./pages/ConsentPortal";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
 import Manual from "./pages/Manual";
 import PatientEntry from "./pages/PatientEntry";
 import PatientSummary from "./pages/PatientSummary";
@@ -13,7 +15,7 @@ function navTabClass(base: string) {
     ["nav-tab", base, isActive ? "nav-tab--active" : ""].filter(Boolean).join(" ");
 }
 
-export default function App() {
+function AppShell() {
   const { pathname } = useLocation();
   const isHome = pathname === "/";
   const isPatientEntry = pathname === "/patient";
@@ -52,6 +54,9 @@ export default function App() {
               <IconFileText className="nav-tab-icon" />
               <span>About the Platform</span>
             </NavLink>
+            <NavLink to="/login" className={navTabClass("nav-tab--login")}>
+              <span>Sign in</span>
+            </NavLink>
           </nav>
         </div>
       </header>
@@ -72,5 +77,17 @@ export default function App() {
         </Routes>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/auth" element={<Navigate to="/login" replace />} />
+        <Route path="/*" element={<AppShell />} />
+      </Routes>
+    </AuthProvider>
   );
 }
