@@ -98,6 +98,7 @@ export function registerAuthRoutes(app: Express) {
     }
     await logActivity({
       actorUserId: user.id,
+      patientId: user.linkedPatientId ?? undefined,
       action: "auth_login",
       detail: "Signed in",
     });

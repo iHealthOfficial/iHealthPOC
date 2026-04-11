@@ -387,6 +387,38 @@ export default function PatientSummary({
   const [fhirJson, setFhirJson] = useState("");
   const [fhirLoading, setFhirLoading] = useState(false);
 
+  type JourneyEvent = {
+    id: string;
+    createdAt: string;
+    action: string;
+    detail: string;
+    actorEmail: string | null;
+  };
+  const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[] | null>(null);
+
+  const showJourney = user?.role === "admin" && !myHealthMode;
+
+  useEffect(() => {
+    if (!id || myHealthMode || user?.role !== "admin") {
+      setJourneyEvents(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api<{ events: JourneyEvent[] }>(
+          `/api/admin/patients/${encodeURIComponent(id)}/activity`,
+        );
+        if (!cancelled) setJourneyEvents(data.events);
+      } catch {
+        if (!cancelled) setJourneyEvents([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, myHealthMode, user?.role]);
+
   useEffect(() => {
     if (!id?.trim()) {
       setPhase("error");
@@ -558,6 +590,31 @@ export default function PatientSummary({
 
   if (!patient) return null;
 
+  function journeyLabelShort(ev: JourneyEvent): string {
+    const map: Record<string, string> = {
+      auth_login: "User signed in",
+      auth_register: "Account signup completed",
+      consent_saved: "Consent preferences saved",
+      patient_link: "Account linked to record",
+      patient_unlink: "Patient record unlinked",
+      patient_ingested: "New patient record created",
+      patient_updated: "Clinical data updated",
+    };
+    return map[ev.action] ?? ev.detail;
+  }
+
+  function formatJourneyTime(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   const name = displayName(patient);
   const initials = patientInitials(patient);
   const idShort = patient.id.length > 12 ? `${patient.id.slice(0, 8)}…` : patient.id;
@@ -570,7 +627,8 @@ export default function PatientSummary({
 
   return (
     <div className="patient-summary-app">
-      <div className="patient-summary-inner">
+      <div className={`patient-summary-inner${showJourney ? " patient-summary-inner--with-journey" : ""}`}>
+        <div className="ps-admin-main">
         <div className="ps-top-bar">
           <svg
             className="ps-top-icon"
@@ -1368,6 +1426,39 @@ export default function PatientSummary({
             </p>
           </div>
         </div>
+        </div>
+
+        {showJourney && (
+          <aside className="ps-journey-rail" aria-label="Patient journey timeline">
+            <h2 className="ps-journey-title">Patient journey</h2>
+            <p className="ps-journey-hint">Key events for this record and linked accounts (oldest first).</p>
+            {journeyEvents === null ? (
+              <p className="ps-journey-loading">Loading timeline…</p>
+            ) : journeyEvents.length === 0 ? (
+              <p className="ps-journey-empty">No journey events yet.</p>
+            ) : (
+              <ul className="ps-journey-list">
+                {journeyEvents.map((ev, idx) => (
+                  <li key={ev.id} className="ps-journey-item">
+                    <div className="ps-journey-track">
+                      <span
+                        className={`ps-journey-dot${idx === 0 ? " ps-journey-dot--first" : ""}`}
+                        aria-hidden
+                      />
+                      {idx < journeyEvents.length - 1 && <span className="ps-journey-line" aria-hidden />}
+                    </div>
+                    <div className="ps-journey-body">
+                      <time className="ps-journey-time" dateTime={ev.createdAt}>
+                        {formatJourneyTime(ev.createdAt)}
+                      </time>
+                      <p className="ps-journey-desc">{journeyLabelShort(ev)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
+        )}
 
         {fhirOpen && (
           <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="FHIR bundle">

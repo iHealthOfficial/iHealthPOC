@@ -97,10 +97,21 @@ export function registerAdminRoutes(app: Express) {
       return;
     }
 
+    const linkedAccounts = await prisma.user.findMany({
+      where: { linkedPatientId: id },
+      select: { id: true },
+    });
+    const linkedIds = linkedAccounts.map((u) => u.id);
+
     const events = await prisma.activityEvent.findMany({
-      where: { patientId: id },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      where:
+        linkedIds.length > 0
+          ? {
+              OR: [{ patientId: id }, { actorUserId: { in: linkedIds } }],
+            }
+          : { patientId: id },
+      orderBy: { createdAt: "asc" },
+      take: 200,
       include: { actorUser: { select: { email: true } } },
     });
 

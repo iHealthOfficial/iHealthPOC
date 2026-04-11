@@ -1594,6 +1594,126 @@ h1 {
   width: 100%;
 }
 
+/* Admin patient view — vertical journey rail (chunk 9) */
+.patient-summary-inner--with-journey {
+  max-width: 1280px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 1.25rem 1.75rem;
+  align-items: start;
+}
+
+.ps-admin-main {
+  min-width: 0;
+}
+
+.ps-journey-rail {
+  position: sticky;
+  top: 1rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 40, 80, 0.12);
+  border-radius: 14px;
+  padding: 1rem 1rem 1.15rem;
+  box-shadow: 0 4px 20px rgba(15, 40, 80, 0.08);
+}
+
+.ps-journey-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0f172a;
+}
+
+.ps-journey-hint {
+  margin: 0 0 0.85rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ps-journey-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ps-journey-item {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.ps-journey-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 14px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.ps-journey-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b6ea5;
+  flex-shrink: 0;
+}
+
+.ps-journey-dot--first {
+  background: #e07a2f;
+  box-shadow: 0 0 0 3px rgba(224, 122, 47, 0.25);
+}
+
+.ps-journey-line {
+  width: 2px;
+  flex: 1;
+  min-height: 20px;
+  background: linear-gradient(180deg, #cbd5e1, #e2e8f0);
+  margin-top: 4px;
+}
+
+.ps-journey-body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 0.85rem;
+}
+
+.ps-journey-time {
+  display: block;
+  font-size: 0.68rem;
+  font-family: var(--mono);
+  color: #64748b;
+  margin-bottom: 0.2rem;
+}
+
+.ps-journey-desc {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.ps-journey-loading,
+.ps-journey-empty {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .patient-summary-inner--with-journey {
+    grid-template-columns: 1fr;
+  }
+
+  .ps-journey-rail {
+    position: static;
+  }
+}
+
 .patient-summary-lead {
   font-family: var(--font-heading);
   font-size: 1.05rem;
