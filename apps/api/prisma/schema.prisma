@@ -51,6 +51,7 @@ model Patient {
   organizations            Organization[]
   familyMemberHistories    FamilyMemberHistory[]
   linkedUsers                User[]
+  activityEvents             ActivityEvent[]
 }
 
 /// FHIR: FamilyMemberHistory — subject is always the related Patient (this record)
@@ -473,4 +474,22 @@ model User {
   /// Optional FHIR Patient this account may view as “my health data”
   linkedPatientId String?
   linkedPatient   Patient? @relation(fields: [linkedPatientId], references: [id], onDelete: SetNull)
+
+  /// JSON map of resource type → permitted (synced from Consent portal when logged in)
+  consentScopesJson String?
+
+  activityEvents ActivityEvent[]
+}
+
+/// Audit trail / patient journey (chunk 8)
+model ActivityEvent {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  actorUserId String?
+  actorUser   User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  patientId   String?
+  patient     Patient? @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  action      String
+  detail      String
+  metaJson    String?
 }

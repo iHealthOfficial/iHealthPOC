@@ -1,10 +1,12 @@
 import type { Prisma } from "@prisma/client";
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
+import { logActivity } from "../activity/logActivity.js";
 import { prisma } from "../db.js";
 import { toFhirCollectionBundle } from "../fhir/mappers.js";
 import { queryString } from "../queryParams.js";
 import { paramString } from "../routeParams.js";
+import { patientIncludeAll } from "./patientsIncludes.js";
 
 const FILTER_STRING_FIELDS = [
   "family",
@@ -322,26 +324,6 @@ function parseDate(s: string | undefined): Date | undefined {
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
-
-const patientIncludeAll = {
-  observations: true,
-  conditions: true,
-  uploads: true,
-  practitioners: true,
-  organizations: true,
-  diagnosticReports: true,
-  procedures: true,
-  allergyIntolerances: true,
-  encounters: { include: { practitioner: true, serviceProviderOrganization: true } },
-  coverages: true,
-  medicationRequests: true,
-  medicationAdministrations: true,
-  medicationDispenses: true,
-  medicationStatements: true,
-  medications: true,
-  immunizations: true,
-  familyMemberHistories: { include: { conditions: true, procedures: true } },
-} as const;
 
 type IngestPayload = z.infer<typeof ingestBody>;
 
@@ -793,6 +775,14 @@ export function registerPatientRoutes(app: Express): void {
         return createPatientClinicalChildren(tx, pat.id, parsed.data);
       });
 
+      if (result?.id) {
+        await logActivity({
+          patientId: result.id,
+          action: "patient_ingested",
+          detail: "New patient record created",
+        });
+      }
+
       res.status(201).json(result);
     } catch (e) {
       console.error(e);
@@ -842,6 +832,12 @@ export function registerPatientRoutes(app: Express): void {
           },
         });
         return createPatientClinicalChildren(tx, id, parsed.data);
+      });
+
+      await logActivity({
+        patientId: id,
+        action: "patient_updated",
+        detail: "Patient clinical data replaced",
       });
 
       res.json(result);

@@ -6,6 +6,8 @@ export type AuthUser = {
   role: "user" | "admin";
   displayName?: string;
   linkedPatientId?: string;
+  /** Server copy of consent (when signed in); drives admin merged consent. */
+  consentScopes?: Record<string, boolean>;
 };
 
 const TOKEN_KEY = "ihealth-auth-token-v1";

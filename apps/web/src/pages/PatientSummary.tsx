@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../auth/AuthContext";
 import type { ConsentResourceType } from "../consent/consentTypes";
 import {
   isMainTabConsentVisible,
@@ -373,6 +374,7 @@ export default function PatientSummary({
   embeddedPatientId?: string;
   myHealthMode?: boolean;
 } = {}) {
+  const { user } = useAuth();
   const params = useParams<{ id: string }>();
   const id = (embeddedPatientId ?? params.id)?.trim() ?? "";
   const consentScopes = useConsentScopes(id?.trim() ?? "");
@@ -400,8 +402,14 @@ export default function PatientSummary({
 
     void (async () => {
       try {
-        const p = await api<PatientFull>(`/api/patients/${encodeURIComponent(id)}`);
+        const path =
+          user?.role === "admin"
+            ? `/api/admin/patients/${encodeURIComponent(id)}`
+            : `/api/patients/${encodeURIComponent(id)}`;
+        const raw = await api<PatientFull & { _adminConsent?: unknown }>(path);
         if (cancelled) return;
+        const { _adminConsent: _ac, ...p } = raw;
+        void _ac;
         setPatient({
           ...p,
           encounters: emptyArr(p.encounters),
@@ -438,7 +446,7 @@ export default function PatientSummary({
     return () => {
       cancelled = true;
     };
-  }, [id, myHealthMode]);
+  }, [id, myHealthMode, user?.role]);
 
   const sortedEncounters = useMemo(() => {
     if (!patient?.encounters) return [];

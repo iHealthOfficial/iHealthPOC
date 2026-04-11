@@ -1,0 +1,20 @@
+/** Shared Prisma include for full patient clinical graph (patients + admin routes). */
+export const patientIncludeAll = {
+  observations: true,
+  conditions: true,
+  uploads: true,
+  practitioners: true,
+  organizations: true,
+  diagnosticReports: true,
+  procedures: true,
+  allergyIntolerances: true,
+  encounters: { include: { practitioner: true, serviceProviderOrganization: true } },
+  coverages: true,
+  medicationRequests: true,
+  medicationAdministrations: true,
+  medicationDispenses: true,
+  medicationStatements: true,
+  medications: true,
+  immunizations: true,
+  familyMemberHistories: { include: { conditions: true, procedures: true } },
+} as const;
