@@ -21,6 +21,10 @@ type Summary = {
 export default function AdminDashboard() {
   const [data, setData] = useState<Summary | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [deletePatientId, setDeletePatientId] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -36,6 +40,40 @@ export default function AdminDashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function deletePatient() {
+    const id = deletePatientId.trim();
+    setDeleteMsg(null);
+    if (!id) {
+      setDeleteMsg({ type: "err", text: "Enter a patient UUID." });
+      return;
+    }
+    if (deleteConfirm.trim() !== "DELETE") {
+      setDeleteMsg({ type: "err", text: 'Type DELETE in the confirmation field to proceed.' });
+      return;
+    }
+    setDeleteBusy(true);
+    try {
+      await api<{ ok: boolean; deletedId: string }>(`/api/admin/patients/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      setDeleteMsg({ type: "ok", text: `Patient ${id} was permanently removed.` });
+      setDeletePatientId("");
+      setDeleteConfirm("");
+      await load();
+    } catch (e) {
+      let msg = e instanceof Error ? e.message : "Delete failed";
+      try {
+        const j = JSON.parse(msg) as { error?: string };
+        if (j.error) msg = j.error;
+      } catch {
+        /* plain text */
+      }
+      setDeleteMsg({ type: "err", text: msg });
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   const unread = data?.feedbackUnreadCount ?? 0;
 
@@ -73,6 +111,56 @@ export default function AdminDashboard() {
                 <div className="admin-stat-value">{data.userCount}</div>
                 <div className="admin-stat-label">Accounts</div>
               </div>
+            </div>
+
+            <h2 className="admin-section-title">Delete patient record</h2>
+            <div className="admin-delete-panel">
+              <p className="admin-dashboard-lead" style={{ marginBottom: "0.75rem" }}>
+                Permanently removes the patient and all linked clinical data. User accounts keep their login but are
+                unlinked from this patient. Upload files stay on disk with no patient link. This cannot be undone.
+              </p>
+              {deleteMsg && (
+                <p
+                  className={deleteMsg.type === "ok" ? "admin-dashboard-lead" : "admin-dashboard-err"}
+                  role={deleteMsg.type === "err" ? "alert" : undefined}
+                  style={{ marginBottom: "0.75rem" }}
+                >
+                  {deleteMsg.text}
+                </p>
+              )}
+              <div className="admin-delete-fields">
+                <label className="field" style={{ flex: "1 1 220px" }}>
+                  <span className="admin-mono" style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                    Patient UUID
+                  </span>
+                  <input
+                    className="admin-mono"
+                    value={deletePatientId}
+                    onChange={(e) => setDeletePatientId(e.target.value)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </label>
+                <label className="field" style={{ flex: "0 1 140px" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Type DELETE</span>
+                  <input
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    placeholder="DELETE"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                className="btn admin-delete-btn"
+                disabled={deleteBusy}
+                onClick={() => void deletePatient()}
+              >
+                {deleteBusy ? "Deleting…" : "Delete patient permanently"}
+              </button>
             </div>
 
             <h2 className="admin-section-title">Recent activity</h2>

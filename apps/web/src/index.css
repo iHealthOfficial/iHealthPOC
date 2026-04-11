@@ -1456,6 +1456,37 @@ h1 {
   padding: 1.5rem !important;
 }
 
+.admin-delete-panel {
+  margin-bottom: 2rem;
+  padding: 1rem 1.25rem 1.25rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  border-left: 3px solid #c62828;
+}
+
+.admin-delete-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: flex-end;
+}
+
+.admin-delete-btn {
+  background: #c62828;
+  color: #fff;
+  border-color: #c62828;
+}
+
+.admin-delete-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.admin-delete-btn:disabled {
+  opacity: 0.6;
+}
+
 /* Homepage */
 .home-page {
   background: linear-gradient(180deg, #e3f1fb 0%, #f5f9fd 38%, #fafcfe 100%);

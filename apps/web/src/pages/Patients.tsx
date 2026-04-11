@@ -181,19 +181,23 @@ export default function Patients() {
     Math.max(0, r._count.observations - (r._count.laboratories ?? 0));
 
   return (
-    <>
-      <h1>Patient directory</h1>
-      <p className="lead">
-        FHIR-aligned columns (R4-style naming). Filters apply to all patient fields{" "}
-        <strong>except identifiers</strong>. Use field search for a substring on one chosen field.
-        <strong> Harmonized bundle</strong> opens a FHIR <code>Bundle</code> (Patient + Observations +
-        Conditions + DocumentReferences for files).
-      </p>
+    <div className="upload-page">
+      <div className="upload-inner">
+        <header className="guide-hero">
+          <h1 className="guide-hero-title">Patient directory</h1>
+          <p className="guide-hero-lead">
+            FHIR-aligned columns (R4-style naming). Filters apply to all patient fields{" "}
+            <strong>except identifiers</strong>. Use field search for a substring on one chosen field.{" "}
+            <strong>Harmonized bundle</strong> opens a FHIR <code>Bundle</code> (Patient + Observations +
+            Conditions + DocumentReferences for files). Each row lists the patient <strong>UUID</strong> for
+            integration and support.
+          </p>
+        </header>
 
-      {err && <div className="msg err">{err}</div>}
+        {err && <div className="msg err">{err}</div>}
 
-      <div className="card">
-        <h2>Filters (identifiers excluded)</h2>
+        <div className="card guide-card">
+          <h2 className="guide-card-heading">Filters (identifiers excluded)</h2>
         <div className="filter-grid">
           <div className="field">
             <label>active</label>
@@ -270,7 +274,9 @@ export default function Patients() {
             />
           </div>
         </div>
-        <h2 style={{ marginTop: "1.25rem" }}>Search one field (substring)</h2>
+        <h2 className="guide-card-heading" style={{ marginTop: "1.25rem" }}>
+          Search one field (substring)
+        </h2>
         <div className="field-grid" style={{ alignItems: "end" }}>
           <div className="field">
             <label>Field</label>
@@ -302,11 +308,13 @@ export default function Patients() {
             Refresh
           </button>
         </div>
-      </div>
+        </div>
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <h2 style={{ padding: "1rem 1.25rem 0", margin: 0 }}>Patient list</h2>
-        <p className="lead" style={{ padding: "0 1.25rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
+        <div className="card guide-card" style={{ padding: 0, overflow: "hidden" }}>
+        <h2 className="guide-card-heading" style={{ padding: "1rem 1.25rem 0", margin: 0 }}>
+          Patient list
+        </h2>
+        <p className="guide-muted" style={{ padding: "0 1.25rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
           {loading ? "Loading…" : `${rows.length} row(s)`}
         </p>
         <div className="table-scroll">
@@ -328,6 +336,7 @@ export default function Patients() {
                 <th>Cond</th>
                 <th>Files</th>
                 <th>Harmonized</th>
+                <th>Patient UUID</th>
               </tr>
             </thead>
             <tbody>
@@ -359,12 +368,15 @@ export default function Patients() {
                         FHIR Bundle
                       </button>
                     </td>
+                    <td className="cell-mono" title={r.id}>
+                      {r.id}
+                    </td>
                   </tr>
                 ))}
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
 
       {fhirOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="FHIR bundle">
@@ -390,6 +402,7 @@ export default function Patients() {
           </div>
         </div>
       )}
-    </>
+      </div>
+    </div>
   );
 }

@@ -43,6 +43,7 @@ function AppShell() {
   const isFeedback = pathname === "/feedback";
   const isManual = pathname === "/manual";
   const isUpload = pathname === "/upload";
+  const isPatients = pathname === "/patients";
 
   const staffNav = !isAuthenticated || user?.role === "admin";
 
@@ -129,7 +130,8 @@ function AppShell() {
             isMyHealth ||
             isFeedback ||
             isManual ||
-            isUpload
+            isUpload ||
+            isPatients
             ? "site-main site-main--flush"
             : "site-main site-main--sheet"
         }

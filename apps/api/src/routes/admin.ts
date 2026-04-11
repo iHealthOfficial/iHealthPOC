@@ -1,9 +1,13 @@
 import type { Express, Request, Response } from "express";
 import { prisma } from "../db.js";
+import { logActivity } from "../activity/logActivity.js";
 import { filterPatientPayloadByConsent } from "../consent/filterPatient.js";
 import { mergeConsentIntersection } from "../consent/consentTypes.js";
 import { requireAuth } from "../middleware/auth.js";
 import { patientIncludeAll } from "./patientsIncludes.js";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function adminOnly(handler: (req: Request, res: Response) => void | Promise<void>) {
   return (req: Request, res: Response, next: (e?: unknown) => void) => {
@@ -127,5 +131,44 @@ export function registerAdminRoutes(app: Express) {
         metaJson: e.metaJson,
       })),
     });
+  }));
+
+  app.delete("/api/admin/patients/:id", adminOnly(async (req: Request, res: Response) => {
+    const id = String(req.params.id ?? "").trim();
+    if (!id || !UUID_RE.test(id)) {
+      res.status(400).json({ error: "Invalid patient id" });
+      return;
+    }
+
+    const existing = await prisma.patient.findUnique({
+      where: { id },
+      select: { id: true, family: true, given: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Patient not found" });
+      return;
+    }
+
+    const actorUserId = req.auth?.userId ?? null;
+    let givenPreview = "";
+    try {
+      const g = JSON.parse(existing.given) as unknown;
+      givenPreview = Array.isArray(g) ? g.join(" ") : String(existing.given);
+    } catch {
+      givenPreview = existing.given;
+    }
+    const label = [existing.family, givenPreview].filter(Boolean).join(", ") || id;
+
+    await prisma.patient.delete({ where: { id } });
+
+    await logActivity({
+      actorUserId,
+      patientId: null,
+      action: "admin_patient_delete",
+      detail: `Deleted patient ${label} (${id})`,
+      meta: { deletedPatientId: id },
+    });
+
+    res.json({ ok: true, deletedId: id });
   }));
 }
